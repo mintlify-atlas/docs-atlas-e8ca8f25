@@ -1,0 +1,146 @@
+---
+title: "Authenticate with GBM Plus API Python"
+sidebarTitle: "Authentication"
+description: "How to obtain your GBM+ credentials, set them securely, and understand how the SDK handles token-based authentication automatically."
+---
+
+The `GBMPlusAPI` client handles authentication entirely on your behalf — you never need to manually manage tokens or session headers. When you instantiate the client, it immediately calls `session.authenticate()`, which sends your credentials to `https://auth.gbm.com/api/v1/session/user` and receives a Bearer access token in return. That token is then automatically attached as an `Authorization: Bearer <token>` header on every subsequent request for the lifetime of the session.
+
+## Required credentials
+
+The SDK requires three pieces of information to authenticate. You can supply them as environment variables (recommended) or pass them directly to the constructor.
+
+<ParamField body="USER_EMAIL" type="string" required>
+  The email address associated with your GBM+ account — the same one you use to log in to the GBM+ web portal.
+</ParamField>
+
+<ParamField body="USER_PASSWORD" type="string" required>
+  The password for your GBM+ account.
+</ParamField>
+
+<ParamField body="CLIENT_ID" type="string" required>
+  A client identifier tied to your GBM+ session. This is **not** your contract number or account number — it is a separate identifier used by the GBM+ authentication endpoint.
+</ParamField>
+
+## Finding your CLIENT_ID
+
+The `CLIENT_ID` is not displayed prominently in the GBM+ user interface, but it is straightforward to locate.
+
+<Note>
+  Open the GBM+ login page in your browser and open the browser developer tools (press **F12** or **Cmd+Option+I** on macOS). Navigate to the **Network** tab, then proceed to log in. Watch for the POST request sent to `auth.gbm.com`. Click on that request and inspect its **Payload** or **Request Body** — the `clientid` field is your `CLIENT_ID`. The [project README](https://github.com/markzuckerbergas/gbmplus-api-python#setup) includes a screenshot that shows exactly where to find it in the GBM+ login dashboard.
+</Note>
+
+## Setting credentials
+
+### 1. Environment variables (recommended)
+
+Supplying credentials through environment variables keeps secrets out of your source code and is the approach used in the project's own examples.
+
+<Tabs>
+  <Tab title="Linux / macOS">
+    ```bash
+    export USER_EMAIL="your@email.com"
+    export USER_PASSWORD="your_password"
+    export CLIENT_ID="your_client_id"
+    ```
+  </Tab>
+  <Tab title="Windows PowerShell">
+    ```powershell
+    $env:USER_EMAIL="your@email.com"
+    $env:USER_PASSWORD="your_password"
+    $env:CLIENT_ID="your_client_id"
+    ```
+  </Tab>
+</Tabs>
+
+When the environment variables are set, you can instantiate the client with no credential arguments:
+
+```python
+import gbmplus
+
+gbm = gbmplus.GBMPlusAPI(output_log=False)
+```
+
+The SDK reads `USER_EMAIL`, `USER_PASSWORD`, and `CLIENT_ID` from the environment automatically via `os.getenv()`.
+
+### 2. Passing credentials directly to the constructor
+
+You can also pass your credentials as keyword arguments when creating the `GBMPlusAPI` instance:
+
+```python
+import gbmplus
+
+gbm = gbmplus.GBMPlusAPI(
+    user_email="your@email.com",
+    user_password="your_password",
+    client_id="your_client_id",
+    output_log=False
+)
+```
+
+<Warning>
+  Hardcoding credentials directly in source code is **not recommended for production use**. Anyone who can read your script — including through version control history — will have access to your account. Use environment variables or a dedicated secrets manager for any code that may be shared or stored in a repository.
+</Warning>
+
+### 3. Mixed: environment variables with constructor overrides
+
+Constructor arguments take precedence over environment variables. You can rely on environment variables for most credentials while overriding a specific one at runtime:
+
+```python
+import gbmplus
+
+# USER_EMAIL and USER_PASSWORD come from env vars;
+# CLIENT_ID is overridden here.
+gbm = gbmplus.GBMPlusAPI(
+    client_id="override_client_id",
+    output_log=False
+)
+```
+
+## How authentication works
+
+The following sequence happens automatically inside `GBMPlusAPI.__init__()` every time you create a new client instance:
+
+1. **Credential resolution** — the SDK checks constructor arguments first, then falls back to `os.getenv()` for any missing values. If any of the three credentials is still missing, a `UserError` is raised immediately.
+
+2. **Session authentication** — `session.authenticate()` sends a POST request to `https://auth.gbm.com/api/v1/session/user` with a JSON payload containing `clientid`, `user`, and `password`. On success, the response includes an `accessToken`.
+
+3. **Token injection** — the access token is stored in `session._access_token` and the session-level header `Authorization: Bearer <token>` is set on the underlying `requests.Session`. All subsequent HTTP calls carry this header automatically.
+
+4. **Contract resolution** — `session.getMainContract()` sends a GET request to `https://api.gbm.com/v1/contracts` to retrieve your primary contract ID. This ID is stored as `session._main_contract_id` and is required by the majority of subsequent API endpoints.
+
+After these four steps complete, the `accounts`, `orders`, `transfers`, and `tradingUSA` module objects are initialized and ready to use.
+
+## Authentication errors
+
+If authentication fails, the SDK raises one of two exceptions:
+
+<ParamField body="UserError">
+  Raised when one or more of the three required credentials (`USER_EMAIL`, `USER_PASSWORD`, `CLIENT_ID`) are missing — either not passed to the constructor and not set as environment variables.
+
+  **Message:** `"User email, password and client_id need to be defined"`
+</ParamField>
+
+<ParamField body="AuthenticationError">
+  Raised when the credentials are present but the GBM+ auth endpoint rejects them — for example, due to a wrong password or an invalid `CLIENT_ID`.
+
+  **Message:** `"There was an authentication error. Verify that email, password and client_id are correct"`
+</ParamField>
+
+Wrap your instantiation call in a `try/except` block to handle these gracefully:
+
+```python
+import gbmplus
+from gbmplus.exceptions import UserError, AuthenticationError
+
+try:
+    gbm = gbmplus.GBMPlusAPI()
+except UserError as e:
+    print("Missing credentials:", e)
+except AuthenticationError as e:
+    print("Invalid credentials:", e)
+```
+
+<Info>
+  For a full reference of all exceptions the SDK can raise — including `APIError` and `OrderFormatError` — see the [Exceptions reference](/api-reference/exceptions).
+</Info>

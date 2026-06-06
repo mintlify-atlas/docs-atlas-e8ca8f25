@@ -1,0 +1,141 @@
+---
+title: "Configure Logging for GBM Plus API Python"
+sidebarTitle: "Logging"
+description: "Set up file and console logging for the GBM Plus SDK, control log verbosity, manage log file paths, and disable logging in production."
+---
+
+The GBM Plus SDK uses Python's standard `logging` module internally, writing messages at `DEBUG` level and above. Every request is logged before it is sent, and every response — including errors and retries — is recorded as well. All logging configuration happens through `GBMPlusAPI` constructor parameters; no external logger setup or `logging.config` calls are required.
+
+<Tip>
+  In performance-sensitive or high-frequency scripts, pass `suppress_logging=True` to the constructor. This skips all logger creation and handler attachment entirely, removing even the small overhead of log-record construction from the hot path.
+</Tip>
+
+## Log output options
+
+The SDK supports two independent output streams. You can enable one, both, or neither.
+
+| Stream | Controlled by | Default |
+|---|---|---|
+| **Console (stdout)** | `print_console` | `True` — messages at `INFO` level and above are printed |
+| **Log file** | `output_log` | `True` — a `.log` file is created in `log_path` at session start |
+
+When both `output_log` and `print_console` are `True`, the file handler receives all levels (`DEBUG` and above) while the console handler is set to `INFO` and above.
+
+### Log file naming
+
+When `output_log=True`, the SDK creates a new file each time a `GBMPlusAPI` session is initialised. The filename follows this pattern:
+
+```
+{log_file_prefix}_log__{YYYY-MM-DD_HH-MM-SS}.log
+```
+
+With the default prefix, a session started at 10:23:45 on 15 January 2024 produces:
+
+```
+gbmplus_api__log__2024-01-15_10-23-45.log
+```
+
+The file is placed in `log_path` (defaults to the current working directory). A trailing `/` is appended to `log_path` automatically if it is missing.
+
+## Log format
+
+All handlers share the same format string, taken directly from the SDK source:
+
+```
+%(asctime)s %(name)12s: %(levelname)8s > %(message)s
+```
+
+Example log output from a typical session:
+
+```
+2024-01-15 10:23:45      gbmplus:    DEBUG > {'tags': ['dashboard', 'contracts', 'accounts'], 'operation': 'getAccounts', 'method': 'GET', 'url': 'https://api.gbm.com/v2/contracts/123/accounts', 'params': None}
+2024-01-15 10:23:45      gbmplus:     INFO > GET https://api.gbm.com/v2/contracts/123/accounts
+2024-01-15 10:23:45      gbmplus:     INFO > accounts, getAccounts - 200 OK
+```
+
+On errors or retries the SDK emits `WARNING` and `ERROR` level messages:
+
+```
+2024-01-15 10:24:01      gbmplus:  WARNING > accounts, getAccounts - 503 Service Unavailable, retrying in 1 second
+2024-01-15 10:24:02      gbmplus:    ERROR > accounts, getAccounts - 400 Bad Request, {'error': 'invalid_param'}
+```
+
+## Recipes
+
+<Tabs>
+  <Tab title="Disable all logging">
+    For silent operation in production or when integrating with your own logging pipeline:
+
+    ```python
+    import gbmplus
+
+    gbm = gbmplus.GBMPlusAPI(suppress_logging=True)
+    ```
+
+    No file is created, nothing is printed, and the internal `_logger` is set to `None`.
+  </Tab>
+  <Tab title="Log to file only">
+    Write a timestamped log file to a custom directory without cluttering the terminal:
+
+    ```python
+    import gbmplus
+
+    gbm = gbmplus.GBMPlusAPI(
+        output_log=True,
+        log_path="/var/log/myapp",
+        log_file_prefix="trading_bot",
+        print_console=False
+    )
+    # Log files named like: /var/log/myapp/trading_bot_log__2024-01-15_10-23-45.log
+    ```
+  </Tab>
+  <Tab title="Console only (no file)">
+    Print log output to the terminal without writing any files — handy during interactive development:
+
+    ```python
+    import gbmplus
+
+    gbm = gbmplus.GBMPlusAPI(output_log=False, print_console=True)
+    ```
+  </Tab>
+  <Tab title="File only (no console)">
+    Keep a persistent audit trail on disk while keeping the terminal clean — a common choice for long-running daemons:
+
+    ```python
+    import gbmplus
+
+    gbm = gbmplus.GBMPlusAPI(
+        output_log=True,
+        print_console=False,
+        log_path="./logs"
+    )
+    ```
+  </Tab>
+</Tabs>
+
+## What gets logged
+
+The SDK logs the following events automatically — no extra instrumentation needed in your code:
+
+<Steps>
+  <Step title="Session initialisation">
+    An `INFO` message is emitted once the `RestSession` is created, listing the session parameters (credentials excluded).
+  </Step>
+  <Step title="Before each request">
+    A `DEBUG` message logs the full endpoint metadata object: tags, operation name, HTTP method, URL, and query parameters.
+  </Step>
+  <Step title="Request sent">
+    An `INFO` message records the HTTP method and URL for every outgoing request.
+  </Step>
+  <Step title="Successful response">
+    An `INFO` message records the tag, operation, HTTP status code, and reason phrase.
+  </Step>
+  <Step title="Retries">
+    A `WARNING` message is emitted before each retry attempt, showing the error and the wait duration.
+  </Step>
+  <Step title="Non-retried errors">
+    An `ERROR` message is emitted when a 4XX error is encountered and `retry_4xx_error=False`, just before `APIError` is raised.
+  </Step>
+</Steps>
+
+For a full list of all logging-related constructor parameters and their defaults, see the [Configuration guide](/guides/configuration).

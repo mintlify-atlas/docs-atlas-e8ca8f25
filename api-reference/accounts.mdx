@@ -1,0 +1,250 @@
+---
+title: "Accounts Module — GBM Plus API Python Reference"
+sidebarTitle: "Accounts"
+description: "Reference for gbm.accounts — methods to list strategies, get buying power, fetch position summaries, and retrieve cash transactions."
+---
+
+`gbm.accounts` provides methods to inspect your GBM+ portfolio, including strategies, buying power, cash transactions, and position summaries. Access it as `gbm.accounts` on any `GBMPlusAPI` instance.
+
+<Note>
+  Two distinct identifiers appear throughout these methods. `account_id` is returned by `getAccounts()` and is used with GBM's main REST API (e.g., cash transactions, transfers). `legacy_contract_id` is also found on each account object and is required when calling the Homebroker endpoints for buying power, position summaries, and order operations. Always check which identifier an endpoint requires before making a call.
+</Note>
+
+---
+
+### `getMainContract()`
+
+```python
+gbm.accounts.getMainContract()
+```
+
+Fetches the primary contract associated with your GBM+ user by calling `GET https://api.gbm.com/v1/contracts`. Returns the first contract object in the list. This method is called automatically during `GBMPlusAPI` initialisation and stores the result in the session — you will rarely need to call it directly.
+
+**Returns:** The first contract dict from the API response.
+
+**Example:**
+
+```python
+import gbmplus
+
+gbm = gbmplus.GBMPlusAPI(output_log=False)
+contract = gbm.accounts.getMainContract()
+print(contract)
+```
+
+---
+
+### `getAccounts()`
+
+```python
+gbm.accounts.getAccounts()
+```
+
+Lists all investment strategies (accounts) linked to your GBM+ contract by calling `GET https://api.gbm.com/v2/contracts/{main_contract}/accounts`. Each item in the returned list contains fields such as `name`, `account_id`, and `legacy_contract_id`.
+
+**Returns:** A list of account/strategy dicts.
+
+**Example:**
+
+```python
+accounts = gbm.accounts.getAccounts()
+for account in accounts:
+    print(account["name"], account["account_id"])
+```
+
+---
+
+### `getStrategies()`
+
+```python
+gbm.accounts.getStrategies()
+```
+
+Alias for [`getAccounts()`](#getaccounts). Calls the same `GET https://api.gbm.com/v2/contracts/{main_contract}/accounts` endpoint and returns identical results. Provided as a convenience method to match GBM+ UI terminology.
+
+**Returns:** A list of account/strategy dicts.
+
+**Example:**
+
+```python
+strategies = gbm.accounts.getStrategies()
+for s in strategies:
+    print(s["name"])
+```
+
+---
+
+### `getAccount(strategy_name)`
+
+```python
+gbm.accounts.getAccount(strategy_name)
+```
+
+Fetches a single account dict by its exact display name. Internally calls `getAccounts()` and performs a dictionary lookup by the `name` field.
+
+<ParamField path="strategy_name" type="string" required>
+  The exact display name of the strategy as it appears in your GBM+ account, e.g. `"Smart Cash"` or `"Swensen"`.
+</ParamField>
+
+**Returns:** The matching account dict, or `None` if no strategy with that name is found.
+
+**Example:**
+
+```python
+account = gbm.accounts.getAccount("Swensen")
+if account:
+    print(account["account_id"])
+    print(account["legacy_contract_id"])
+```
+
+---
+
+### `getStrategy(strategy_name)`
+
+```python
+gbm.accounts.getStrategy(strategy_name)
+```
+
+Alias for [`getAccount(strategy_name)`](#getaccountstrategy_name). Returns a single strategy dict by its exact display name.
+
+<ParamField path="strategy_name" type="string" required>
+  The exact display name of the strategy, e.g. `"Smart Cash"`.
+</ParamField>
+
+**Returns:** The matching account dict, or `None` if not found.
+
+**Example:**
+
+```python
+strategy = gbm.accounts.getStrategy("Smart Cash")
+print(strategy)
+```
+
+---
+
+### `getCashTransactions(account_id, page=None, page_size=None)`
+
+```python
+gbm.accounts.getCashTransactions(account_id, page=None, page_size=None)
+```
+
+Retrieves the cash transaction history for a given account by calling `GET https://api.gbm.com/v1/contracts/{main_contract}/accounts/{account_id}/cash-transactions`. Optionally accepts pagination parameters to limit and page through large result sets.
+
+<ParamField path="account_id" type="string" required>
+  The `account_id` of the strategy whose cash transactions you want to retrieve. Obtain this from `getAccounts()`.
+</ParamField>
+
+<ParamField path="page" type="integer">
+  The page number to retrieve. When provided together with `page_size`, the request URL includes both as query parameters.
+</ParamField>
+
+<ParamField path="page_size" type="integer">
+  The number of results to return per page. Must be supplied alongside `page`.
+</ParamField>
+
+**Returns:** A paginated response object containing an `items` array of cash transaction dicts.
+
+**Example:**
+
+```python
+# All cash transactions (unpaginated)
+transactions = gbm.accounts.getCashTransactions(account["account_id"])
+
+# Paginated
+transactions_page2 = gbm.accounts.getCashTransactions(
+    account["account_id"],
+    page=2,
+    page_size=20
+)
+
+for tx in transactions["items"]:
+    print(tx)
+```
+
+---
+
+### `getStateOfTransfer(account_id, transfer_id)`
+
+```python
+gbm.accounts.getStateOfTransfer(account_id, transfer_id)
+```
+
+Searches the cash transaction history for a specific transfer by its `transfer_id`. Calls `getCashTransactions()` internally and iterates through the `items` array to find a match.
+
+<ParamField path="account_id" type="string" required>
+  The `account_id` of the strategy to search within.
+</ParamField>
+
+<ParamField path="transfer_id" type="string" required>
+  The `transfer_id` returned when the transfer was originally created (e.g. via `gbm.transfers.transfer()`).
+</ParamField>
+
+**Returns:** The matching transaction dict if found, or `None` if the transfer ID does not appear in the current transaction history.
+
+**Example:**
+
+```python
+state = gbm.accounts.getStateOfTransfer(
+    account_id=origin["account_id"],
+    transfer_id="abc-123-transfer-id"
+)
+print(state)
+```
+
+---
+
+### `getContractBuyingPower(legacy_contract_id)`
+
+```python
+gbm.accounts.getContractBuyingPower(legacy_contract_id)
+```
+
+Retrieves the current buying power available for a contract by calling `POST https://homebroker-api.gbm.com/GBMP/api/Operation/GetContractBuyingPower`. This endpoint belongs to the Homebroker API and requires the `legacy_contract_id` rather than the standard `account_id`.
+
+<ParamField path="legacy_contract_id" type="string" required>
+  The legacy contract identifier found in the account object returned by `getAccounts()`. This is distinct from `account_id`.
+</ParamField>
+
+**Returns:** A buying power object containing available funds for trading.
+
+**Example:**
+
+```python
+accounts = gbm.accounts.getAccounts()
+accounts_dict = {a["name"]: a for a in accounts}
+
+legacy_id = accounts_dict["Swensen"]["legacy_contract_id"]
+buying_power = gbm.accounts.getContractBuyingPower(legacy_id)
+print(buying_power)
+```
+
+---
+
+### `getPositionSummary(legacy_contract_id)`
+
+```python
+gbm.accounts.getPositionSummary(legacy_contract_id)
+```
+
+Retrieves the position summary for a contract by calling `POST https://homebroker-api.gbm.com/GBMP/api/Portfolio/GetPositionSummary`. Like `getContractBuyingPower()`, this is a Homebroker endpoint that requires the `legacy_contract_id`.
+
+<ParamField path="legacy_contract_id" type="string" required>
+  The legacy contract identifier found in the account object returned by `getAccounts()`.
+</ParamField>
+
+**Returns:** A position summary object describing current holdings and valuations for the contract.
+
+**Example:**
+
+```python
+accounts = gbm.accounts.getAccounts()
+accounts_dict = {a["name"]: a for a in accounts}
+
+legacy_id = accounts_dict["Swensen"]["legacy_contract_id"]
+summary = gbm.accounts.getPositionSummary(legacy_id)
+print(summary)
+```
+
+---
+
+For a worked example of using account IDs to move funds between strategies, see [Transfer Funds](/examples/transfer-funds).

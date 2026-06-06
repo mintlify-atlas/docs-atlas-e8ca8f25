@@ -1,0 +1,197 @@
+---
+title: "Orders Module — GBM Plus API Python Reference"
+sidebarTitle: "Orders"
+description: "Reference for gbm.orders — generate order objects, submit buy/sell orders, and retrieve the order blotter for Mexican market instruments."
+---
+
+`gbm.orders` provides methods to create and submit buy/sell orders for Mexican market instruments traded on the IPC (Bolsa Mexicana de Valores) and SIC (Sistema Internacional de Cotizaciones) markets. Access it as `gbm.orders` on any `GBMPlusAPI` instance.
+
+<Warning>
+  Calling `submitOrder()` places a **real order** on the Mexican stock exchange using your live GBM+ account. Test your order generation logic thoroughly with `generateOrderObject()` before passing the result to `submitOrder()`. Always verify the instrument, quantity, and price before submitting.
+</Warning>
+
+---
+
+### `generateOrderObject(...)`
+
+```python
+gbm.orders.generateOrderObject(
+    legacy_contract_id,
+    issuer,
+    quantity,
+    order_type,
+    trading_type,
+    instrument_type,
+    price=None
+)
+```
+
+Builds and returns the order dict required by `submitOrder()`. This method **does not submit the order** — it only constructs the payload including a computed hash. For limited (limit) orders, `price` is mandatory; omitting it raises an `OrderFormatError`.
+
+<ParamField path="legacy_contract_id" type="string" required>
+  The legacy contract identifier from the account object returned by `getAccounts()`. Used to compute the order hash.
+</ParamField>
+
+<ParamField path="issuer" type="string" required>
+  The ticker or issuer string for the instrument, e.g. `'FUNO 11'` or `'AMXL'`. Spaces are stripped when generating the hash.
+</ParamField>
+
+<ParamField path="quantity" type="integer" required>
+  Number of shares or units to buy or sell.
+</ParamField>
+
+<ParamField path="order_type" type="OrderTypes enum" required>
+  Direction of the order. Use `gbmplus.OrderTypes.Buy` to purchase or `gbmplus.OrderTypes.Sell` to sell.
+</ParamField>
+
+<ParamField path="trading_type" type="TradingTypes enum" required>
+  Execution type. Use `gbmplus.TradingTypes.Market` for a market order or `gbmplus.TradingTypes.Limited` for a limit order. When using `TradingTypes.Limited`, the `price` argument is required.
+</ParamField>
+
+<ParamField path="instrument_type" type="InstrumentTypes enum" required>
+  Market segment for the instrument. Use `gbmplus.InstrumentTypes.IPC` for BMV-listed equities or `gbmplus.InstrumentTypes.SIC` for internationally listed instruments traded through SIC.
+</ParamField>
+
+<ParamField path="price" type="float">
+  Limit price per share. Required when `trading_type` is `TradingTypes.Limited`; raises `OrderFormatError` if omitted. Ignored for market orders.
+</ParamField>
+
+**Returns:** A dict with the following keys:
+
+| Key | Description |
+|---|---|
+| `algoTradingTypeId` | Numeric value of `trading_type` |
+| `capitalOrderTypeId` | Numeric value of `order_type` |
+| `instrumentType` | Numeric value of `instrument_type` |
+| `issueId` | The `issuer` string passed in |
+| `quantity` | Number of units |
+| `hash` | A timestamp-based unique hash for the order |
+| `price` | *(Only present for limit orders)* The specified limit price |
+
+**Example — market buy order:**
+
+```python
+import gbmplus
+
+gbm = gbmplus.GBMPlusAPI(output_log=False)
+accounts = gbm.accounts.getAccounts()
+accounts_dict = {a["name"]: a for a in accounts}
+
+legacy_id = accounts_dict["Swensen"]["legacy_contract_id"]
+
+order = gbm.orders.generateOrderObject(
+    legacy_contract_id=legacy_id,
+    issuer="FUNO 11",
+    quantity=100,
+    order_type=gbmplus.OrderTypes.Buy,
+    trading_type=gbmplus.TradingTypes.Market,
+    instrument_type=gbmplus.InstrumentTypes.IPC
+)
+print(order)
+```
+
+**Example — limited (limit) sell order:**
+
+```python
+limit_order = gbm.orders.generateOrderObject(
+    legacy_contract_id=legacy_id,
+    issuer="AMXL",
+    quantity=50,
+    order_type=gbmplus.OrderTypes.Sell,
+    trading_type=gbmplus.TradingTypes.Limited,
+    instrument_type=gbmplus.InstrumentTypes.IPC,
+    price=18.50
+)
+print(limit_order)
+```
+
+<Tip>
+  For a full list of enum values and their underlying integers, see the [Enums reference](/api-reference/enums).
+</Tip>
+
+---
+
+### `submitOrder(legacy_contract_id, duration, order)`
+
+```python
+gbm.orders.submitOrder(legacy_contract_id, duration, order)
+```
+
+Submits a previously generated order to the exchange by calling `POST https://homebroker-api.gbm.com/GBMP/api/Operation/RegisterCapitalOrder`. The payload sent to the API includes the contract ID, duration, trading type, and the full order object as a single-element array.
+
+<ParamField path="legacy_contract_id" type="string" required>
+  The legacy contract identifier for the account placing the order. Must match the `legacy_contract_id` used when generating the order object.
+</ParamField>
+
+<ParamField path="duration" type="integer" required>
+  The number of days the order should remain active. Use `1` for a day order (expires at end of trading session).
+</ParamField>
+
+<ParamField path="order" type="dict" required>
+  The order dict returned by `generateOrderObject()`. Do not construct this manually — always use `generateOrderObject()` to ensure the hash is correctly computed.
+</ParamField>
+
+**Returns:** The API response from `RegisterCapitalOrder`, typically including order confirmation details.
+
+**Example:**
+
+```python
+import gbmplus
+
+gbm = gbmplus.GBMPlusAPI(output_log=False)
+accounts = gbm.accounts.getAccounts()
+accounts_dict = {a["name"]: a for a in accounts}
+
+legacy_id = accounts_dict["Swensen"]["legacy_contract_id"]
+
+order = gbm.orders.generateOrderObject(
+    legacy_contract_id=legacy_id,
+    issuer="FUNO 11",
+    quantity=100,
+    order_type=gbmplus.OrderTypes.Buy,
+    trading_type=gbmplus.TradingTypes.Market,
+    instrument_type=gbmplus.InstrumentTypes.IPC
+)
+
+result = gbm.orders.submitOrder(
+    legacy_contract_id=legacy_id,
+    duration=1,
+    order=order
+)
+print(result)
+```
+
+---
+
+### `getOrders(legacy_contract_id)`
+
+```python
+gbm.orders.getOrders(legacy_contract_id)
+```
+
+Retrieves the order blotter for the current trading day by calling `POST https://homebroker-api.gbm.com/GBMP/api/Operation/GetBlotterOrders`. The request is scoped to the current UTC date and includes both IPC (`instrumentType=2`) and SIC (`instrumentType=0`) instruments.
+
+<ParamField path="legacy_contract_id" type="string" required>
+  The legacy contract identifier for the account whose orders you want to retrieve.
+</ParamField>
+
+**Returns:** The blotter orders response from the API, containing submitted orders for the current trading session.
+
+**Example:**
+
+```python
+import gbmplus
+
+gbm = gbmplus.GBMPlusAPI(output_log=False)
+accounts = gbm.accounts.getAccounts()
+accounts_dict = {a["name"]: a for a in accounts}
+
+legacy_id = accounts_dict["Swensen"]["legacy_contract_id"]
+
+orders = gbm.orders.getOrders(legacy_id)
+print(orders)
+```
+
+---
+
+For enum values used with `generateOrderObject()`, see the [Enums reference](/api-reference/enums). For a complete worked example of placing an order, see [Submit an Order](/examples/submit-order).

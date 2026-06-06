@@ -1,0 +1,172 @@
+---
+title: "Configure the GBM Plus API Python Client"
+sidebarTitle: "Configuration"
+description: "All GBMPlusAPI constructor parameters — timeouts, retries, logging, and credential options — with default values and usage examples."
+---
+
+`GBMPlusAPI` accepts a set of optional keyword arguments that control session behaviour, retries, timeouts, and logging. Every parameter has a sensible default value defined in `gbmplus/config.py`, so you only need to override the ones that differ from your target environment. Credentials (`user_email`, `user_password`, `client_id`) are the sole required inputs — they can be supplied either directly or through environment variables.
+
+## Parameter reference
+
+<ParamField query="user_email" type="string" optional>
+  GBM+ account email address used for authentication. When omitted, the SDK
+  reads the `USER_EMAIL` environment variable.
+</ParamField>
+
+<ParamField query="user_password" type="string" optional>
+  GBM+ account password used for authentication. When omitted, the SDK reads
+  the `USER_PASSWORD` environment variable.
+</ParamField>
+
+<ParamField query="client_id" type="string" optional>
+  GBM+ client ID associated with your account. When omitted, the SDK reads the
+  `CLIENT_ID` environment variable.
+</ParamField>
+
+<ParamField query="single_request_timeout" type="integer" optional default={60}>
+  Maximum number of seconds to wait for a single API call before raising a
+  timeout error. Increase this value if you are on a slow connection or calling
+  endpoints that return large payloads.
+</ParamField>
+
+<ParamField query="maximum_retries" type="integer" optional default={2}>
+  Maximum number of times the SDK will retry a request after encountering
+  server-side (5XX) errors or network-level exceptions. Set to `0` to disable
+  retries entirely.
+</ParamField>
+
+<ParamField query="retry_4xx_error" type="boolean" optional default={false}>
+  When `True`, the SDK also retries requests that return 4XX HTTP errors instead
+  of raising an `APIError` immediately. Useful for handling transient rate-limit
+  responses. Has no effect unless `maximum_retries` is greater than `0`.
+</ParamField>
+
+<ParamField query="retry_4xx_error_wait_time" type="integer" optional default={60}>
+  Upper bound in seconds for the random back-off wait before retrying a 4XX
+  error. The actual wait is chosen randomly between `1` and this value each
+  retry attempt. Only applies when `retry_4xx_error=True`.
+</ParamField>
+
+<ParamField query="output_log" type="boolean" optional default={true}>
+  When `True`, the SDK writes a log file to the directory specified by
+  `log_path`. The filename includes the `log_file_prefix` and the timestamp at
+  session creation.
+</ParamField>
+
+<ParamField query="log_path" type="string" optional default='""'>
+  Directory path where the log file is written. Defaults to an empty string,
+  which resolves to the current working directory of the running script. A
+  trailing `/` is added automatically if missing.
+</ParamField>
+
+<ParamField query="log_file_prefix" type="string" optional default='"gbmplus_api_"'>
+  Prefix prepended to the log filename. The full filename format is
+  `{log_file_prefix}_log__{YYYY-MM-DD_HH-MM-SS}.log`.
+</ParamField>
+
+<ParamField query="print_console" type="boolean" optional default={true}>
+  When `True`, log output is also printed to the console (stdout) at `INFO`
+  level and above. Set to `False` to silence terminal output while still
+  writing to a log file.
+</ParamField>
+
+<ParamField query="suppress_logging" type="boolean" optional default={false}>
+  When `True`, all logging is completely disabled — no log file is created and
+  nothing is printed to the console. Takes precedence over all other logging
+  parameters. Recommended for production scripts where performance matters.
+</ParamField>
+
+## Default values
+
+The following constants are defined in `gbmplus/config.py` and serve as the defaults for every session:
+
+```python
+# From gbmplus/config.py
+SINGLE_REQUEST_TIMEOUT = 60
+RETRY_4XX_ERROR = False
+RETRY_4XX_ERROR_WAIT_TIME = 60
+MAXIMUM_RETRIES = 2
+OUTPUT_LOG = True
+LOG_PATH = ''
+LOG_FILE_PREFIX = 'gbmplus_api_'
+PRINT_TO_CONSOLE = True
+SUPPRESS_LOGGING = False
+```
+
+## Example configurations
+
+The examples below cover the most common setup scenarios. Mix and match parameters to suit your environment.
+
+<Tabs>
+  <Tab title="Minimal / silent">
+    Disable all logging and use a shorter timeout — useful for lightweight scripts or automated jobs where you want no output:
+
+    ```python
+    import gbmplus
+
+    gbm = gbmplus.GBMPlusAPI(
+        output_log=False,
+        suppress_logging=True,
+        single_request_timeout=30
+    )
+    ```
+  </Tab>
+  <Tab title="Log to file only">
+    Write a log file to a custom directory without printing anything to the console:
+
+    ```python
+    import gbmplus
+
+    gbm = gbmplus.GBMPlusAPI(
+        output_log=True,
+        log_path="/var/log/trading",
+        print_console=False
+    )
+    ```
+  </Tab>
+  <Tab title="Enable 4XX retry">
+    Retry on client-side HTTP errors with a shorter back-off window and an extra retry attempt:
+
+    ```python
+    import gbmplus
+
+    gbm = gbmplus.GBMPlusAPI(
+        retry_4xx_error=True,
+        retry_4xx_error_wait_time=30,
+        maximum_retries=3
+    )
+    ```
+  </Tab>
+  <Tab title="Custom log prefix">
+    Use a meaningful log file prefix so that multiple bots can write to the same directory without overwriting each other:
+
+    ```python
+    import gbmplus
+
+    gbm = gbmplus.GBMPlusAPI(
+        output_log=True,
+        log_path="./logs",
+        log_file_prefix="trading_bot",
+        print_console=False
+    )
+    # Produces: ./logs/trading_bot_log__2024-01-15_10-23-45.log
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+  Store `USER_EMAIL`, `USER_PASSWORD`, and `CLIENT_ID` as environment variables rather than hardcoding them in your source code. This keeps secrets out of version control and lets you swap credentials between environments without touching your script.
+
+  ```bash
+  export USER_EMAIL="your@email.com"
+  export USER_PASSWORD="yourpassword"
+  export CLIENT_ID="your-client-id"
+  ```
+
+  ```python
+  import gbmplus
+
+  # Credentials are picked up automatically from the environment
+  gbm = gbmplus.GBMPlusAPI()
+  ```
+</Tip>

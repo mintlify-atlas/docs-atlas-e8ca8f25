@@ -1,0 +1,104 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "GBM Plus API Python",
+  "projectDescription": "A Python SDK for interfacing with the GBM Plus/Homebroker trading platform, enabling programmatic access to accounts, orders, transfers, and US market trading.",
+  "theme": "luma",
+  "primaryColor": "#1A5CFF",
+  "lightColor": "#3D7BFF",
+  "darkColor": "#0A3BB8",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "authentication"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/configuration",
+              "guides/error-handling",
+              "guides/logging"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/transfer-funds",
+              "examples/submit-order",
+              "examples/trading-usa"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/overview",
+              "api-reference/enums"
+            ]
+          },
+          {
+            "group": "Modules",
+            "pages": [
+              "api-reference/accounts",
+              "api-reference/orders",
+              "api-reference/transfers",
+              "api-reference/trading-usa"
+            ]
+          },
+          {
+            "group": "Exceptions",
+            "pages": [
+              "api-reference/exceptions"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Authenticate with GBM Plus using email, password, and client ID",
+    "Retrieve accounts and investment strategies",
+    "Submit and retrieve buy/sell orders for Mexican market instruments",
+    "Transfer funds between accounts/strategies",
+    "Place and track orders on the US market via Trading USA",
+    "Configurable retry logic and logging",
+    "Environment variable support for secure credential management"
+  ],
+  "publicApiSurface": [
+    "GBMPlusAPI(user_email, user_password, client_id, ...)",
+    "GBMPlusAPI.accounts.getMainContract()",
+    "GBMPlusAPI.accounts.getAccounts()",
+    "GBMPlusAPI.accounts.getAccount(strategy_name)",
+    "GBMPlusAPI.accounts.getStrategies()",
+    "GBMPlusAPI.accounts.getStrategy(strategy_name)",
+    "GBMPlusAPI.accounts.getCashTransactions(account_id, page, page_size)",
+    "GBMPlusAPI.accounts.getStateOfTransfer(account_id, transfer_id)",
+    "GBMPlusAPI.accounts.getContractBuyingPower(legacy_contract_id)",
+    "GBMPlusAPI.accounts.getPositionSummary(legacy_contract_id)",
+    "GBMPlusAPI.orders.generateOrderObject(legacy_contract_id, issuer, quantity, order_type, trading_type, instrument_type, price)",
+    "GBMPlusAPI.orders.submitOrder(legacy_contract_id, duration, order)",
+    "GBMPlusAPI.orders.getOrders(legacy_contract_id)",
+    "GBMPlusAPI.transfers.transfer(amount, origin_account_id, target_account_id)",
+    "GBMPlusAPI.tradingUSA.generateOrderUSA(account_id, issuer, amount, instrument_id, order_type)",
+    "GBMPlusAPI.tradingUSA.getMarketsUSA()",
+    "GBMPlusAPI.tradingUSA.getOrdersUSA(account_id)",
+    "OrderTypes (Buy, Sell)",
+    "TradingTypes (Limited, Market)",
+    "InstrumentTypes (SIC, IPC)",
+    "UserError",
+    "AuthenticationError",
+    "APIError",
+    "OrderFormatError"
+  ]
+}

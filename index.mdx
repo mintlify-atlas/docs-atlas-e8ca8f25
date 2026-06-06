@@ -1,20 +1,75 @@
 ---
-title: "Introduction"
-description: "Welcome to your project"
+title: "GBM Plus API Python: Trade Programmatically on GBM+"
+sidebarTitle: "Home"
+description: "Python SDK for GBM Plus and Homebroker. Manage accounts, submit orders, transfer funds, and access US markets from your own scripts."
 ---
 
-Write a short description of your product here. What it does, who it's for, and what they can accomplish with it.
+The GBM Plus API Python library gives developers programmatic access to the GBM Plus and Homebroker trading platform. With a single import you can authenticate, inspect your strategies, submit buy/sell orders for Mexican and US market instruments, and move funds between accounts.
+
+<Warning>
+  This is an unofficial, community-built library. The GBM Plus API is not publicly documented and was reverse-engineered. Review the [GBM Terms of Service](https://invertir.gbm.com/condiciones-del-servicio-gbmplus) before use. You assume full responsibility for compliance.
+</Warning>
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install the library and make your first API call in under 5 minutes.
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    Learn how to obtain your credentials and authenticate your session.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/overview">
+    Full reference for all modules, methods, enums, and exceptions.
+  </Card>
+  <Card title="Examples" icon="flask" href="/examples/submit-order">
+    Worked examples for orders, transfers, and US market trading.
+  </Card>
+</CardGroup>
+
+## What you can do
+
+<CardGroup cols={2}>
+  <Card title="Manage Accounts" icon="wallet" href="/api-reference/accounts">
+    List strategies, fetch buying power, and retrieve position summaries.
+  </Card>
+  <Card title="Submit Orders" icon="arrow-up-right-dots" href="/api-reference/orders">
+    Generate and submit buy/sell orders for IPC and SIC instruments.
+  </Card>
+  <Card title="Transfer Funds" icon="right-left" href="/api-reference/transfers">
+    Move MXN amounts between your GBM+ strategies programmatically.
+  </Card>
+  <Card title="Trading USA" icon="flag-usa" href="/api-reference/trading-usa">
+    Place fractional orders on US stocks via the Trading USA platform.
+  </Card>
+</CardGroup>
+
+## Getting started in three steps
+
+<Steps>
+  <Step title="Install via pip">
+    ```bash
+    pip install gbmplus
+    ```
+  </Step>
+  <Step title="Set your credentials">
+    Export your GBM+ email, password, and client ID as environment variables. Find your `CLIENT_ID` in the GBM+ login dashboard.
+
+    ```bash
+    export USER_EMAIL="you@example.com"
+    export USER_PASSWORD="your-password"
+    export CLIENT_ID="your-client-id"
+    ```
+  </Step>
+  <Step title="Make your first call">
+    ```python
+    import gbmplus
+
+    gbm = gbmplus.GBMPlusAPI(output_log=False)
+    accounts = gbm.accounts.getAccounts()
+    print(accounts)
+    ```
+  </Step>
+</Steps>
 
 <Tip>
-  Ready to make this your own? Start by editing this page. Update your `docs.json` file to customize your site. Then fill out the [Quickstart](/quickstart) page.
+  See the [Configuration guide](/guides/configuration) for all available session parameters including timeouts, retry behaviour, and logging options.
 </Tip>
-
-<Card title="Quickstart" icon="rocket" href="/quickstart">
-  This card links to the quickstart page in your project.
-</Card>
-<Card title="Components" icon="puzzle-piece" href="https://mintlify.com/docs/components">
-  Add cards, callouts, steps, tabs, and more to design and structure your pages.
-</Card>
-<Card title="Settings" icon="gear" href="https://mintlify.com/docs/organize/settings">
-  Set your site name, branding, and navigation in the `docs.json` file.
-</Card>

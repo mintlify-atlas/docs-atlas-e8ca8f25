@@ -1,0 +1,153 @@
+---
+title: "GBM Plus SDK Enums: OrderTypes, TradingTypes, InstrumentTypes"
+sidebarTitle: "Enums"
+description: "Reference for the three enumerations exported by gbmplus — OrderTypes, TradingTypes, and InstrumentTypes — used when generating and submitting orders."
+---
+
+The `gbmplus` package exports three `Enum` classes — `OrderTypes`, `TradingTypes`, and `InstrumentTypes` — that are used as arguments to `generateOrderObject()`. By using these named constants instead of raw integers you avoid magic numbers in your trading code, get IDE auto-complete support, and make it immediately clear what each argument represents at a glance.
+
+---
+
+## `OrderTypes`
+
+`OrderTypes` specifies the direction of a trade: a purchase or a sale.
+
+| Member | Integer value | Meaning |
+|---|---|---|
+| `OrderTypes.Buy` | `1` | Open a long position — purchase the instrument |
+| `OrderTypes.Sell` | `8` | Close or short a position — sell the instrument |
+
+**Usage example:**
+
+```python
+import gbmplus
+
+order_type = gbmplus.OrderTypes.Buy
+print(order_type)        # OrderTypes.Buy
+print(order_type.value)  # 1
+```
+
+---
+
+## `TradingTypes`
+
+`TradingTypes` controls how the order is matched by the exchange: at a specific price or at whatever price the market offers.
+
+| Member | Integer value | Meaning |
+|---|---|---|
+| `TradingTypes.Limited` | `0` | Limit order — the order only fills at `price` or better |
+| `TradingTypes.Market` | `5` | Market order — the order fills immediately at the best available price |
+
+**Usage example:**
+
+```python
+import gbmplus
+
+# Market order — no price argument needed
+trading_type = gbmplus.TradingTypes.Market
+
+# Limit order — price must be supplied to generateOrderObject()
+trading_type = gbmplus.TradingTypes.Limited
+```
+
+<Note>
+  When `TradingTypes.Limited` is used, a `price` argument **must** be provided to `generateOrderObject()`. Omitting it raises an `OrderFormatError`. `TradingTypes.Market` orders do not require a `price`.
+</Note>
+
+---
+
+## `InstrumentTypes`
+
+`InstrumentTypes` identifies the market segment of the instrument you are trading on the Mexican exchange.
+
+| Member | Integer value | Meaning |
+|---|---|---|
+| `InstrumentTypes.SIC` | `0` | Sistema Internacional de Cotizaciones — international instruments listed and traded on the Mexican exchange (e.g. US stocks cross-listed in Mexico) |
+| `InstrumentTypes.IPC` | `2` | Índice de Precios y Cotizaciones — domestic Mexican stock market instruments traded on the BMV |
+
+**Usage example:**
+
+```python
+import gbmplus
+
+# Domestic Mexican instrument (BMV)
+instrument_type = gbmplus.InstrumentTypes.IPC
+
+# International instrument cross-listed on the Mexican exchange
+instrument_type = gbmplus.InstrumentTypes.SIC
+```
+
+---
+
+## Importing enums
+
+All three enums are available directly on the top-level `gbmplus` module — no sub-module import is required.
+
+```python
+import gbmplus
+
+# All three enums are available directly on the gbmplus module
+gbmplus.OrderTypes.Buy
+gbmplus.TradingTypes.Market
+gbmplus.InstrumentTypes.IPC
+```
+
+You can also access the underlying integer value of any member via `.value`:
+
+```python
+gbmplus.OrderTypes.Sell.value       # 8
+gbmplus.TradingTypes.Limited.value  # 0
+gbmplus.InstrumentTypes.SIC.value   # 0
+```
+
+---
+
+## Full usage example
+
+The example below shows all three enums working together when constructing and submitting a market buy order for a domestic Mexican instrument.
+
+```python
+import gbmplus
+
+gbm = gbmplus.GBMPlusAPI(
+    user_email="you@example.com",
+    user_password="s3cr3t",
+    client_id="YOUR_CLIENT_ID"
+)
+
+# Retrieve a contract ID to use for the order
+contract_id = gbm.accounts.getContractId()
+
+# Build the order object using all three enums
+order = gbm.orders.generateOrderObject(
+    legacy_contract_id=contract_id,
+    issuer='FUNO 11',
+    quantity=10,
+    order_type=gbmplus.OrderTypes.Buy,
+    trading_type=gbmplus.TradingTypes.Market,
+    instrument_type=gbmplus.InstrumentTypes.IPC
+)
+
+# Submit the order
+gbm.orders.placeOrder(order)
+```
+
+For a limit order, add the `price` argument:
+
+```python
+order = gbm.orders.generateOrderObject(
+    legacy_contract_id=contract_id,
+    issuer='FUNO 11',
+    quantity=10,
+    order_type=gbmplus.OrderTypes.Buy,
+    trading_type=gbmplus.TradingTypes.Limited,
+    instrument_type=gbmplus.InstrumentTypes.IPC,
+    price=25.50  # Required when TradingTypes.Limited is used
+)
+```
+
+<Note>
+  Passing `trading_type=gbmplus.TradingTypes.Limited` without a `price` argument raises `OrderFormatError`. Always include `price` for limit orders.
+</Note>
+
+See the [Orders reference](/api-reference/orders) for the complete `generateOrderObject()` signature and all available parameters.

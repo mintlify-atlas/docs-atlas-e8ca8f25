@@ -1,0 +1,150 @@
+---
+title: "Trading USA Module — GBM Plus API Python Reference"
+sidebarTitle: "Trading USA"
+description: "Reference for gbm.tradingUSA — look up US market instruments, place fractional buy orders, and retrieve Trading USA order history."
+---
+
+`gbm.tradingUSA` provides access to the GBM+ Trading USA platform for buying US stocks. Unlike the Mexican market (`gbm.orders`), Trading USA orders reference instruments by `instrument_id` — an internal GBM identifier that must be fetched from `getMarketsUSA()` before placing an order. Order amounts are specified in MXN pesos and fractional purchases are supported. Access this module as `gbm.tradingUSA` on any `GBMPlusAPI` instance.
+
+<Warning>
+  Orders placed through `generateOrderUSA()` are **real market orders** that use live funds from your GBM+ Trading USA strategy. US market hours apply (Monday–Friday, 08:30–15:00 CT). Orders submitted outside market hours may be rejected or queued depending on the platform's behaviour.
+</Warning>
+
+---
+
+### `getMarketsUSA()`
+
+```python
+gbm.tradingUSA.getMarketsUSA()
+```
+
+Fetches the complete list of US market instruments available on the GBM+ Trading USA platform by calling `GET https://api.gbm.com/v1/markets/USA`. Each instrument in the response includes a human-readable `security_id` (the stock ticker) and a GBM-internal `instrument_id` required when placing orders.
+
+<Note>
+  This endpoint returns a large dataset covering all available US instruments. The call may take several seconds to complete. Consider caching the result locally rather than calling `getMarketsUSA()` before every order.
+</Note>
+
+**Returns:** A list of instrument dicts, each containing at minimum `security_id` (ticker symbol) and `instrument_id` (GBM internal identifier).
+
+**Example:**
+
+```python
+import gbmplus
+
+gbm = gbmplus.GBMPlusAPI(output_log=False)
+
+markets = gbm.tradingUSA.getMarketsUSA()
+
+# Build a lookup dict by ticker
+markets_dict = {m["security_id"]: m for m in markets}
+
+amzn = markets_dict["AMZN"]
+instrument_id = amzn["instrument_id"]
+print(instrument_id)
+```
+
+---
+
+### `generateOrderUSA(account_id, issuer, amount, instrument_id, order_type="buy")`
+
+```python
+gbm.tradingUSA.generateOrderUSA(
+    account_id,
+    issuer,
+    amount,
+    instrument_id,
+    order_type="buy"
+)
+```
+
+Places a fractional order on the GBM+ Trading USA platform by calling `POST https://api.trading-usa.gbm.com/v1/orders/contracts/{main_contract_id}/accounts/{account_id}/orders`. The order is always submitted as a market order (`order_type: "market"`) internally; the `order_type` parameter on this method controls the trade direction (`"buy"` or `"sell"`).
+
+<Note>
+  You must retrieve `instrument_id` via `getMarketsUSA()` before calling this method. The `instrument_id` is a GBM-internal identifier and is **not** the same as the stock ticker.
+</Note>
+
+<ParamField path="account_id" type="string" required>
+  The `account_id` of your Trading USA strategy. Retrieve this from `gbm.accounts.getAccounts()` — use the account whose name corresponds to your Trading USA strategy. This is **not** `legacy_contract_id`.
+</ParamField>
+
+<ParamField path="issuer" type="string" required>
+  The stock ticker symbol, e.g. `"AMZN"`, `"AAPL"`, or `"TSLA"`. Sent to the API as `security_id`.
+</ParamField>
+
+<ParamField path="amount" type="float" required>
+  The amount in MXN pesos to invest. Fractional shares are supported — you do not need to specify a whole number of units.
+</ParamField>
+
+<ParamField path="instrument_id" type="string" required>
+  The GBM-internal instrument identifier for the stock. Must be retrieved from `getMarketsUSA()` prior to calling this method.
+</ParamField>
+
+<ParamField path="order_type" type="string">
+  Trade direction. Use `"buy"` (default) to purchase the instrument or `"sell"` to sell. Sent to the API as `side`.
+</ParamField>
+
+**Returns:** The API response from the Trading USA orders endpoint, typically including order confirmation details.
+
+**Example — buy $1,000 MXN of Amazon stock:**
+
+```python
+import gbmplus
+
+gbm = gbmplus.GBMPlusAPI(output_log=False)
+
+# 1. Get the instrument_id for AMZN
+markets = gbm.tradingUSA.getMarketsUSA()
+markets_dict = {m["security_id"]: m for m in markets}
+instrument_id = markets_dict["AMZN"]["instrument_id"]
+
+# 2. Get the Trading USA account_id
+accounts = gbm.accounts.getAccounts()
+accounts_dict = {a["name"]: a for a in accounts}
+trading_usa_account_id = accounts_dict["Trading USA"]["account_id"]
+
+# 3. Place the order
+result = gbm.tradingUSA.generateOrderUSA(
+    account_id=trading_usa_account_id,
+    issuer="AMZN",
+    amount=1000,  # MXN
+    instrument_id=instrument_id,
+    order_type="buy"
+)
+print(result)
+```
+
+---
+
+### `getOrdersUSA(account_id)`
+
+```python
+gbm.tradingUSA.getOrdersUSA(account_id)
+```
+
+Retrieves the order history for a Trading USA strategy by calling `GET https://api.trading-usa.gbm.com/v1/orders/contracts/{main_contract_id}/accounts/{account_id}/orders`.
+
+<ParamField path="account_id" type="string" required>
+  The `account_id` of the Trading USA strategy whose order history you want to retrieve.
+</ParamField>
+
+**Returns:** A list of order objects for the specified Trading USA account.
+
+**Example:**
+
+```python
+import gbmplus
+
+gbm = gbmplus.GBMPlusAPI(output_log=False)
+
+accounts = gbm.accounts.getAccounts()
+accounts_dict = {a["name"]: a for a in accounts}
+trading_usa_account_id = accounts_dict["Trading USA"]["account_id"]
+
+orders = gbm.tradingUSA.getOrdersUSA(trading_usa_account_id)
+for order in orders:
+    print(order)
+```
+
+---
+
+For a complete end-to-end example including market lookup and order placement, see [Trading USA Example](/examples/trading-usa). To understand the `account_id` identifier used throughout this module, see the [Accounts reference](/api-reference/accounts).

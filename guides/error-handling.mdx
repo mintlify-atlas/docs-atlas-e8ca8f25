@@ -1,0 +1,126 @@
+---
+title: "Handle Errors in GBM Plus API Python"
+sidebarTitle: "Error Handling"
+description: "Understand and catch GBM Plus SDK exceptions — UserError, AuthenticationError, APIError, and OrderFormatError — with practical try/except patterns."
+---
+
+The GBM Plus SDK raises typed exceptions from `gbmplus.exceptions` so you can handle specific failure modes precisely in your code. Instead of catching a generic `Exception`, you can target exactly what went wrong — missing credentials, a failed login, an HTTP error from the API, or a malformed order — and respond accordingly.
+
+<Note>
+  All SDK exceptions inherit directly from Python's built-in `Exception` class, so they are fully compatible with standard `try/except` patterns and third-party error-tracking libraries.
+</Note>
+
+## Exception types
+
+| Exception | When it is raised |
+|---|---|
+| `UserError` | At instantiation, when one or more of `user_email`, `user_password`, or `client_id` is missing (not passed and not set as an environment variable). |
+| `AuthenticationError` | When the SDK successfully sends credentials to the GBM+ auth endpoint but the server rejects them — wrong email, password, or client ID. |
+| `APIError` | On any HTTP error response from the GBM+ API (4XX or 5XX) after all retry attempts have been exhausted. Carries structured metadata about the failure. |
+| `OrderFormatError` | When `generateOrderObject` is called with `trading_type=TradingTypes.Limited` but no `price` argument is provided. |
+
+### `APIError` attributes
+
+`APIError` exposes the following attributes for programmatic inspection:
+
+| Attribute | Type | Description |
+|---|---|---|
+| `status` | `int \| None` | HTTP status code returned by the API (e.g. `404`, `500`). |
+| `reason` | `str \| None` | HTTP reason phrase (e.g. `"Not Found"`, `"Internal Server Error"`). |
+| `message` | `dict \| str \| None` | Parsed JSON body of the response, or the first 100 bytes of the raw content if the body is not valid JSON. |
+| `tag` | `str` | API section tag identifying the endpoint group (e.g. `"accounts"`, `"orders"`). |
+| `operation` | `str` | Name of the operation that failed (e.g. `"getAccounts"`, `"placeOrder"`). |
+
+## Importing exceptions
+
+Import the exceptions you need directly from `gbmplus.exceptions`:
+
+```python
+from gbmplus.exceptions import UserError, AuthenticationError, APIError, OrderFormatError
+```
+
+## Handling credential and auth errors
+
+Credential and authentication errors are raised during `GBMPlusAPI()` construction — before any API call is made. Wrap the instantiation in a `try/except` block to handle them gracefully:
+
+```python
+import gbmplus
+from gbmplus.exceptions import UserError, AuthenticationError
+
+try:
+    gbm = gbmplus.GBMPlusAPI()
+except UserError as e:
+    print("Missing credentials:", e)
+    # e.message -> "User email, password and client_id need to be defined"
+except AuthenticationError as e:
+    print("Authentication failed:", e)
+    # e.message -> "There was an authentication error. Verify that email, password and client_id are correct"
+```
+
+<Warning>
+  `UserError` is raised when any of the three credential fields is absent entirely. If credentials are present but incorrect (wrong password, revoked client ID), the SDK will attempt to authenticate and raise `AuthenticationError` instead.
+</Warning>
+
+## Handling API errors
+
+After a successful login, API calls can still fail due to network problems, invalid parameters, or server-side issues. Inspect the `APIError` attributes to understand exactly what went wrong:
+
+```python
+from gbmplus.exceptions import APIError
+
+try:
+    accounts = gbm.accounts.getAccounts()
+except APIError as e:
+    print(f"API error: {e.status} {e.reason}")
+    print(f"Operation: {e.tag} / {e.operation}")
+    print(f"Response: {e.message}")
+```
+
+Example output for a 404 response:
+
+```
+API error: 404 Not Found
+Operation: accounts / getAccounts
+Response: 404 Not Found
+```
+
+## Handling order format errors
+
+`OrderFormatError` is raised before any network call is made, when the SDK detects that your order parameters are logically inconsistent. The most common case is using `TradingTypes.Limited` without supplying a `price`:
+
+```python
+import gbmplus
+from gbmplus.exceptions import OrderFormatError
+
+try:
+    order = gbm.orders.generateOrderObject(
+        legacy_contract_id=contract_id,
+        issuer="AMZN",
+        quantity=1,
+        order_type=gbmplus.OrderTypes.Buy,
+        trading_type=gbmplus.TradingTypes.Limited,  # requires price!
+        instrument_type=gbmplus.InstrumentTypes.SIC
+        # price omitted — will raise OrderFormatError
+    )
+except OrderFormatError as e:
+    print("Order error:", e)
+    # e.message -> "There was a formatting error in the order. ..."
+```
+
+## Retry behaviour
+
+The SDK has built-in automatic retry logic to handle transient failures without requiring any extra code from you.
+
+<Steps>
+  <Step title="5XX server errors">
+    When the GBM+ API returns a `5XX` status code, the SDK waits 1 second and retries the request automatically. This happens up to `maximum_retries` times (default: **2**). If all retries are exhausted, `APIError` is raised.
+  </Step>
+  <Step title="Network exceptions">
+    If a low-level `requests.exceptions.RequestException` is raised (connection reset, DNS failure, etc.), the SDK applies the same 1-second wait and retry logic as for 5XX errors.
+  </Step>
+  <Step title="4XX client errors">
+    By default, 4XX errors are **not** retried — `APIError` is raised immediately. Set `retry_4xx_error=True` at instantiation to enable retries for these responses. The wait time before each retry is a random value between 1 and `retry_4xx_error_wait_time` seconds (default: **60**).
+  </Step>
+</Steps>
+
+For full details on configuring retry parameters, see the [Configuration guide](/guides/configuration).

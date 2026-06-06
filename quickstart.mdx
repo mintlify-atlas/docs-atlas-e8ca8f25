@@ -1,47 +1,114 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with GBM Plus API Python"
+sidebarTitle: "Quickstart"
+description: "Install the gbmplus Python SDK, set your credentials, and make your first API call to list your GBM+ strategies in under 5 minutes."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+By the end of this page you will have the `gbmplus` library installed, your GBM+ credentials configured as environment variables, and a working Python script that authenticates with the platform and retrieves the list of your investment strategies (accounts). The whole process takes under five minutes.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+
+  <Step title="Install the library">
+    Install `gbmplus` from the Python Package Index using `pip`:
 
     ```bash
-    npm install your-package
+    pip install gbmplus
     ```
-  </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+
+    If your system has both Python 2 and Python 3 installed, use `pip3` to ensure the package is installed for Python 3:
 
     ```bash
-    your-cli init
+    pip3 install gbmplus
     ```
-  </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+
+    If you already have a previous version of `gbmplus` installed and want to upgrade to the latest release, run:
 
     ```bash
-    your-cli start
+    pip install --upgrade gbmplus
     ```
   </Step>
+
+  <Step title="Obtain your credentials">
+    The SDK requires three credentials to authenticate with GBM+:
+
+    - **USER\_EMAIL** — the email address you use to log in to GBM+.
+    - **USER\_PASSWORD** — your GBM+ account password.
+    - **CLIENT\_ID** — a client identifier associated with your GBM+ session.
+
+    <Note>
+      **Finding your CLIENT\_ID:** The `CLIENT_ID` is not the same as your account or contract number. To find it, open the GBM+ login page in your browser, open the developer tools (F12), go to the **Network** tab, and log in. Inspect the POST request sent to `auth.gbm.com` — the `clientid` field in the request body is your `CLIENT_ID`. The project README also includes a screenshot showing exactly where to look.
+    </Note>
+
+    Keep all three values secret and never commit them to source control.
+  </Step>
+
+  <Step title="Set environment variables">
+    The recommended way to supply credentials is through environment variables. The SDK reads `USER_EMAIL`, `USER_PASSWORD`, and `CLIENT_ID` from your shell environment at startup.
+
+    <Tabs>
+      <Tab title="Linux / macOS">
+        ```bash
+        export USER_EMAIL="your@email.com"
+        export USER_PASSWORD="your_password"
+        export CLIENT_ID="your_client_id"
+        ```
+
+        Add these lines to your `~/.bashrc`, `~/.zshrc`, or equivalent shell profile to persist them across sessions.
+      </Tab>
+      <Tab title="Windows PowerShell">
+        ```powershell
+        $env:USER_EMAIL="your@email.com"
+        $env:USER_PASSWORD="your_password"
+        $env:CLIENT_ID="your_client_id"
+        ```
+
+        To persist environment variables across PowerShell sessions on Windows, use `[System.Environment]::SetEnvironmentVariable(...)` or set them through **System Properties → Environment Variables** in the Windows UI.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Instantiate the client">
+    Import the library and create a `GBMPlusAPI` instance. A single object manages your entire session:
+
+    ```python
+    import gbmplus
+
+    gbm = gbmplus.GBMPlusAPI(output_log=False)
+    ```
+
+    As soon as `GBMPlusAPI` is instantiated, the SDK automatically:
+
+    1. Reads your credentials from the environment variables you set in the previous step.
+    2. Authenticates against `https://auth.gbm.com/api/v1/session/user` and stores your Bearer access token.
+    3. Fetches your primary contract ID from `https://api.gbm.com/v1/contracts`, which is required by most subsequent API calls.
+
+    Setting `output_log=False` suppresses creation of a log file on disk. You can omit this parameter (or set it to `True`) to keep a timestamped log of all API activity.
+  </Step>
+
+  <Step title="Make your first API call">
+    Retrieve the list of all your strategies (accounts) and print the result:
+
+    ```python
+    accounts = gbm.accounts.getAccounts()
+    print(accounts)
+    ```
+
+    You can also look up a single account by its strategy name. For example, to retrieve only the **Smart Cash** strategy:
+
+    ```python
+    account = gbm.accounts.getAccount("Smart Cash")
+    print(account)
+    ```
+
+    Both calls follow the `client.scope.operation()` pattern — `gbm` is the client, `accounts` is the scope (module), and `getAccounts()` / `getAccount()` are the operations.
+  </Step>
+
 </Steps>
 
 <Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
-
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
+  The `GBMPlusAPI` constructor accepts several additional parameters to fine-tune session behaviour — including request timeouts, retry logic, and logging options. See the [Configuration guide](/guides/configuration) for the full list of available settings and their defaults.
 </Tip>
+
+<Warning>
+  **Never hardcode credentials in your source code.** Storing `USER_EMAIL`, `USER_PASSWORD`, or `CLIENT_ID` as plain strings in a script exposes them to anyone who can read the file, including version control history. Always use environment variables, a secrets manager, or a `.env` file that is excluded from source control via `.gitignore`.
+</Warning>

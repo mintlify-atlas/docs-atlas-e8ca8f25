@@ -1,0 +1,167 @@
+---
+title: "Exceptions Reference — GBM Plus API Python"
+sidebarTitle: "Exceptions"
+description: "Complete reference for gbmplus exceptions — UserError, AuthenticationError, APIError, and OrderFormatError — with attributes and handling examples."
+---
+
+The `gbmplus.exceptions` module defines four exception classes that the SDK raises for different failure conditions. All inherit from Python's built-in `Exception`. Understanding these exceptions helps you write robust production code that gracefully handles credential problems, network failures, and malformed requests.
+
+```python
+from gbmplus.exceptions import UserError, AuthenticationError, APIError, OrderFormatError
+```
+
+---
+
+### `UserError`
+
+Raised at `GBMPlusAPI()` instantiation when one or more of the required credentials — `user_email`, `user_password`, or `client_id` — are missing (neither passed as arguments nor present as environment variables).
+
+**Attributes**
+
+| Attribute | Type | Value |
+|-----------|------|-------|
+| `message` | `str` | `"User email, password and client_id need to be defined"` |
+
+**Example**
+
+```python
+import gbmplus
+from gbmplus.exceptions import UserError
+
+try:
+    gbm = gbmplus.GBMPlusAPI()
+except UserError as e:
+    print(e.message)  # User email, password and client_id need to be defined
+```
+
+<Tip>
+  Pass credentials explicitly via `GBMPlusAPI(user_email=..., user_password=..., client_id=...)` or set the corresponding environment variables before instantiation to avoid this exception. See the [configuration guide](/guides/configuration) for all supported options.
+</Tip>
+
+---
+
+### `AuthenticationError`
+
+Raised at `GBMPlusAPI()` instantiation when the SDK's initial auth request to `https://auth.gbm.com/api/v1/session/user` fails or the response does not contain a valid `accessToken`. This typically indicates invalid credentials or an unreachable auth endpoint.
+
+**Attributes**
+
+| Attribute | Type | Value |
+|-----------|------|-------|
+| `message` | `str` | `"There was an authentication error. Verify that email, password and client_id are correct"` |
+
+**Example**
+
+```python
+import gbmplus
+from gbmplus.exceptions import AuthenticationError
+
+try:
+    gbm = gbmplus.GBMPlusAPI(
+        user_email="wrong@example.com",
+        user_password="bad-password",
+        client_id="invalid-client"
+    )
+except AuthenticationError as e:
+    print(e.message)
+    # There was an authentication error. Verify that email, password and client_id are correct
+```
+
+<Warning>
+  `AuthenticationError` is raised during client construction, before any API calls are made. Always wrap `GBMPlusAPI()` instantiation in a try/except block when credentials may be dynamic or user-supplied.
+</Warning>
+
+---
+
+### `APIError`
+
+Raised when any HTTP **4XX** or **5XX** response is returned by the GBM+ API after all available retry attempts have been exhausted. The exception captures the full context of the failed request, making it easy to log or surface structured error information.
+
+**Attributes**
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `status` | `int` or `None` | HTTP status code of the response (e.g. `404`, `500`) |
+| `reason` | `str` or `None` | HTTP reason phrase (e.g. `"Not Found"`, `"Internal Server Error"`) |
+| `message` | `dict`, `str`, or `None` | Response body parsed as a JSON `dict`, or a raw UTF-8 string if JSON decoding fails |
+| `tag` | `str` | First tag from the endpoint's metadata — identifies the SDK module (e.g. `"accounts"`, `"orders"`) |
+| `operation` | `str` | Operation name that triggered the error (e.g. `"getAccounts"`, `"submitOrder"`) |
+
+**String representation**
+
+When printed or logged directly, `APIError` produces a structured message in the form:
+
+```
+{tag}, {operation} - {status} {reason}, {message}
+```
+
+For example: `accounts, getAccounts - 404 Not Found, {"error": "Resource not found"}`
+
+**Example**
+
+```python
+from gbmplus.exceptions import APIError
+
+try:
+    accounts = gbm.accounts.getAccounts()
+except APIError as e:
+    print(f"HTTP {e.status}: {e.reason}")
+    print(f"Module: {e.tag}, Operation: {e.operation}")
+    print(f"Response body: {e.message}")
+```
+
+---
+
+### `OrderFormatError`
+
+Raised inside `orders.generateOrderObject()` when the provided arguments form an invalid combination — specifically, when `trading_type=TradingTypes.Limited` is specified but the required `price` parameter is `None` or omitted.
+
+**Attributes**
+
+| Attribute | Type | Value |
+|-----------|------|-------|
+| `message` | `str` | `"There was a formatting error in the order. "` + an additional detail message |
+
+**Example**
+
+```python
+import gbmplus
+from gbmplus.exceptions import OrderFormatError
+
+try:
+    order = gbm.orders.generateOrderObject(
+        legacy_contract_id=contract_id,
+        issuer='FUNO 11',
+        quantity=1,
+        order_type=gbmplus.OrderTypes.Buy,
+        trading_type=gbmplus.TradingTypes.Limited,  # requires price
+        instrument_type=gbmplus.InstrumentTypes.IPC
+        # price is omitted — raises OrderFormatError
+    )
+except OrderFormatError as e:
+    print(e.message)
+```
+
+<Tip>
+  Always supply a `price` argument when using `TradingTypes.Limited`. Market orders (`TradingTypes.Market`) do not require a price.
+</Tip>
+
+---
+
+## Retry behaviour context
+
+The SDK automatically retries failed requests before raising `APIError`. Understanding the retry policy helps you interpret when and why an `APIError` is ultimately raised.
+
+- **5XX server errors** — The SDK retries automatically, waiting one second between attempts, up to `maximum_retries` times (default: `2`). `APIError` is only raised once all retries have been exhausted.
+- **4XX client errors** — These are raised immediately as `APIError` by default, since retrying a bad request rarely helps. If `retry_4xx_error=True` is set on the session, the SDK will retry 4XX responses as well, waiting a random interval up to `retry_4xx_error_wait_time` seconds between attempts.
+- **Network/connection errors** — Transport-level failures (e.g. DNS failures, timeouts) also consume the retry budget. `APIError` is raised if the budget is exhausted.
+
+See the [configuration guide](/guides/configuration) for full details on `maximum_retries`, `retry_4xx_error`, and `retry_4xx_error_wait_time`.
+
+---
+
+<Note>
+  For production applications, wrap all API calls in `try/except` blocks that handle at minimum `APIError`. Consider also catching `UserError` and `AuthenticationError` around `GBMPlusAPI()` instantiation. Structured error attributes like `e.status`, `e.tag`, and `e.operation` make it straightforward to emit structured logs or feed errors into monitoring systems.
+
+  For a complete walkthrough of error handling patterns, see the [error handling guide](/guides/error-handling).
+</Note>

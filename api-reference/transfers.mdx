@@ -1,0 +1,75 @@
+---
+title: "Transfers Module — GBM Plus API Python Reference"
+sidebarTitle: "Transfers"
+description: "Reference for gbm.transfers.transfer() — move MXN amounts between GBM+ investment strategies programmatically."
+---
+
+`gbm.transfers` exposes a single method for moving funds between GBM+ investment strategies. Access it as `gbm.transfers` on any `GBMPlusAPI` instance.
+
+<Warning>
+  `transfer()` moves **real money** between live investment accounts. Double-check the origin and target `account_id` values and the amount before calling this method. Transfers cannot be automatically reversed.
+</Warning>
+
+<Note>
+  Transfers use `account_id` (returned by `getAccounts()`), **not** `legacy_contract_id`. See the [Accounts reference](/api-reference/accounts) for details on the difference between these two identifiers.
+</Note>
+
+---
+
+### `transfer(amount, origin_account_id, target_account_id)`
+
+```python
+gbm.transfers.transfer(amount, origin_account_id, target_account_id)
+```
+
+Moves a specified MXN amount from one GBM+ strategy to another by calling `POST https://api.gbm.com/v1/contracts/{main_contract_id}/accounts/{origin_account_id}/transfers`. The `main_contract_id` is resolved automatically from the session established at `GBMPlusAPI` initialisation.
+
+<ParamField path="amount" type="float" required>
+  The amount in MXN pesos to transfer from the origin strategy to the target strategy, e.g. `500` for $500 MXN.
+</ParamField>
+
+<ParamField path="origin_account_id" type="string" required>
+  The `account_id` of the source strategy. Retrieve this from `gbm.accounts.getAccounts()` — do not use `legacy_contract_id`.
+</ParamField>
+
+<ParamField path="target_account_id" type="string" required>
+  The `account_id` of the destination strategy. Must belong to the same GBM+ contract as the origin.
+</ParamField>
+
+**Returns:** The API response from the transfers endpoint, typically including a `transfer_id` that can be used with `gbm.accounts.getStateOfTransfer()` to poll the transfer status.
+
+**Example:**
+
+```python
+import gbmplus
+
+gbm = gbmplus.GBMPlusAPI(output_log=False)
+accounts = gbm.accounts.getAccounts()
+accounts_dict = {a["name"]: a for a in accounts}
+
+origin = accounts_dict["Smart Cash"]
+target = accounts_dict["Swensen"]
+
+result = gbm.transfers.transfer(
+    amount=500,  # MXN
+    origin_account_id=origin["account_id"],
+    target_account_id=target["account_id"]
+)
+print(result)
+```
+
+**Checking transfer status afterwards:**
+
+```python
+transfer_id = result.get("transfer_id")
+
+state = gbm.accounts.getStateOfTransfer(
+    account_id=origin["account_id"],
+    transfer_id=transfer_id
+)
+print(state)
+```
+
+---
+
+For a complete walkthrough of funding a strategy via transfer, see [Transfer Funds](/examples/transfer-funds). For the `account_id` vs `legacy_contract_id` distinction, see the [Accounts reference](/api-reference/accounts).

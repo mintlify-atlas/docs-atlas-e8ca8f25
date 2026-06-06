@@ -1,0 +1,90 @@
+---
+title: "GBM Plus API Python: SDK Overview and Key Concepts"
+sidebarTitle: "Introduction"
+description: "Overview of the GBM Plus API Python library — an unofficial Python SDK for trading on GBM Plus and Homebroker programmatically."
+---
+
+The GBM Plus API Python library (`gbmplus`) is a community-built Python SDK that lets you interact with the GBM Plus and Homebroker trading platform programmatically. With it you can retrieve account and strategy data, place buy and sell orders on Mexican and US markets, execute cash transfers between strategies, and integrate your GBM+ portfolio into any Python script or application — all through a clean, object-oriented interface.
+
+<Warning>
+  **This is an unofficial, reverse-engineered library and is not affiliated with or endorsed by GBM.**
+  The GBM Plus / Homebroker API is not publicly documented. Development of this library relied on reverse engineering the platform's private API. GBM's [Terms of Service](https://invertir.gbm.com/condiciones-del-servicio-gbmplus) state: _"Se encuentra prohibido colocar o utilizar los Servicios y Contenidos del Portal en sitios o páginas propias o de terceros, sin autorización previa y por escrito de GBM."_ While directly consuming the API is not explicitly prohibited, GBM may interpret this library as falling under that clause. **It is solely your responsibility to review the Terms of Service and determine whether your use is permitted before proceeding.**
+</Warning>
+
+## What is GBM Plus?
+
+GBM Plus (formerly Homebroker) is a retail brokerage platform operated by GBM (Grupo Bursátil Mexicano) that allows individual investors in Mexico to buy and sell securities on the Mexican Stock Exchange (IPC/BMV) as well as US-listed stocks through its Trading USA product. Users manage multiple investment _strategies_ (accounts) within a single contract, and can move cash freely between them. The `gbmplus` library exposes these capabilities via a Python API so you can automate trading workflows, backtest ideas, and monitor your portfolio without using the web interface.
+
+## Library overview
+
+The SDK is organized into four functional modules, each accessible as a property on the main `GBMPlusAPI` client object.
+
+<CardGroup cols={2}>
+  <Card title="Accounts" icon="wallet" href="/api-reference/accounts">
+    Retrieve your GBM+ contract, list all strategies (accounts), look up a strategy by name, and fetch cash transaction history.
+  </Card>
+  <Card title="Orders" icon="arrow-right-arrow-left" href="/api-reference/orders">
+    Submit, track, and cancel buy or sell orders for Mexican-market instruments using market or limit order types.
+  </Card>
+  <Card title="Transfers" icon="money-bill-transfer" href="/api-reference/transfers">
+    Move cash between your GBM+ strategies, for example from Smart Cash to an investment strategy.
+  </Card>
+  <Card title="Trading USA" icon="flag-usa" href="/api-reference/trading-usa">
+    Place orders for US-listed equities (e.g. AMZN, AAPL) through the GBM+ Trading USA product.
+  </Card>
+</CardGroup>
+
+## How it works
+
+Every operation in the library follows the pattern `client.scope.operation(...)`, where:
+
+- **`client`** is the `GBMPlusAPI` instance you create at startup.
+- **`scope`** is one of the four modules: `accounts`, `orders`, `transfers`, or `tradingUSA`.
+- **`operation`** is the specific API method you want to call.
+
+For example, to retrieve all of your strategies (accounts):
+
+```python
+import gbmplus
+
+gbm = gbmplus.GBMPlusAPI(output_log=False)
+
+accounts = gbm.accounts.getAccounts()
+print(accounts)
+```
+
+When you call `GBMPlusAPI(...)`, the SDK automatically:
+
+1. Reads your credentials from environment variables (or constructor arguments).
+2. Calls `session.authenticate()` against the GBM auth endpoint to obtain a Bearer access token.
+3. Calls `session.getMainContract()` to resolve your primary contract ID, which is required by most subsequent requests.
+
+After instantiation, the session object silently attaches the `Authorization: Bearer <token>` header to every outgoing request — you never have to manage tokens manually.
+
+## Requirements
+
+Before using `gbmplus`, make sure you have the following:
+
+<ParamField body="Python 3" required>
+  The library requires Python 3. Install it from [python.org](https://www.python.org/downloads/) if you do not already have it.
+</ParamField>
+
+<ParamField body="pip" required>
+  The standard Python package manager. Used to install `gbmplus` from the [Python Package Index](https://pypi.org/project/gbmplus/).
+</ParamField>
+
+<ParamField body="USER_EMAIL" required>
+  The email address associated with your GBM+ account.
+</ParamField>
+
+<ParamField body="USER_PASSWORD" required>
+  The password for your GBM+ account.
+</ParamField>
+
+<ParamField body="CLIENT_ID" required>
+  A client identifier tied to your GBM+ session. This value is not the same as your account number.
+</ParamField>
+
+<Note>
+  **Finding your CLIENT_ID:** The `CLIENT_ID` is visible in the GBM+ login dashboard. Open the login page in your browser, open the browser's developer tools (F12), navigate to the **Network** tab, and inspect the authentication request to `auth.gbm.com`. The `clientid` field in the request payload is your `CLIENT_ID`. You can also find guidance in the [project README](https://github.com/markzuckerbergas/gbmplus-api-python#setup) which includes a screenshot of where to locate it.
+</Note>

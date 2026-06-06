@@ -1,0 +1,147 @@
+---
+title: "Transfer Funds Between GBM+ Strategies"
+sidebarTitle: "Transfer Funds"
+description: "Step-by-step example showing how to transfer MXN from the Smart Cash strategy to another GBM+ investment strategy using the transfers module."
+---
+
+This example demonstrates how to move funds between two GBM+ strategies using `gbm.transfers.transfer()`. A common use case is sweeping idle cash from the **Smart Cash** strategy into an active investment strategy — the SDK makes this a single function call once you have the origin and target account IDs.
+
+## Prerequisites
+
+Before running this example, make sure you have:
+
+- An authenticated GBM+ session (valid email, password, and `client_id` configured — see the [quickstart](/api-reference/accounts))
+- The name of the **origin** strategy (this example uses `'Smart Cash'`)
+- The name of the **target** strategy you want to fund
+
+<Warning>
+  Transfers are denominated in **Mexican Pesos (MXN)**. Ensure the amount you pass reflects the peso value you intend to move, not any other currency.
+</Warning>
+
+## Full example
+
+The complete script below fetches all accounts, resolves the origin and target account IDs by strategy name, and executes the transfer.
+
+```python
+import gbmplus
+from datetime import datetime
+
+# Transfer money from the Smart Cash strategy to a target strategy
+
+def main():    
+    
+    # Instantiate trader object
+    gbm = gbmplus.GBMPlusAPI(output_log=False)
+
+    # Get all of the accounts (strategies) and place them in a dictionary 
+    accounts = gbm.accounts.getAccounts()
+    accounts_dict = {element["name"]: element for element in accounts}
+
+    # Get source/origin and target/destination account
+    smart_cash_account = accounts_dict.get('Smart Cash')
+    target_account = accounts_dict.get('NAME OF YOUR STRATEGY') # Replace with your desired strategy
+
+    if smart_cash_account and target_account:    
+        
+        # Initiate Transfer for 100 MXN pesos
+        response = gbm.transfers.transfer(
+            amount=100, # in MXN
+            origin_account_id=smart_cash_account.get('account_id'),
+            target_account_id=target_account.get('account_id')
+        )
+
+        print(response)
+        
+if __name__ == '__main__':
+    start_time = datetime.now()
+    main()
+    end_time = datetime.now()
+    print(f'\nScript complete, total runtime {end_time - start_time}')
+```
+
+## Step-by-step walkthrough
+
+<Steps>
+  <Step title="Instantiate the client">
+    Create a `GBMPlusAPI` instance. Setting `output_log=False` skips writing a log file to disk — useful for quick scripts.
+
+    ```python
+    gbm = gbmplus.GBMPlusAPI(output_log=False)
+    ```
+
+    On instantiation the SDK automatically authenticates your session and fetches your main contract ID. Credentials are read from the environment variables `GBM_USER_EMAIL`, `GBM_USER_PASSWORD`, and `GBM_CLIENT_ID` (or passed directly as constructor arguments).
+  </Step>
+
+  <Step title="Fetch all accounts and build a name-keyed dictionary">
+    `getAccounts()` returns a list of account objects, each representing one of your GBM+ strategies. Wrapping the list in a dict keyed by `"name"` lets you look up accounts by their human-readable strategy name.
+
+    ```python
+    accounts = gbm.accounts.getAccounts()
+    accounts_dict = {element["name"]: element for element in accounts}
+    ```
+  </Step>
+
+  <Step title="Look up the origin (Smart Cash) and target account">
+    Use `.get()` on the dictionary to retrieve each account object. Replace `'NAME OF YOUR STRATEGY'` with the exact name of your target strategy as it appears in the GBM+ app.
+
+    ```python
+    smart_cash_account = accounts_dict.get('Smart Cash')
+    target_account = accounts_dict.get('NAME OF YOUR STRATEGY')
+    ```
+
+    The guard `if smart_cash_account and target_account` prevents the transfer from running if either strategy name isn't found.
+  </Step>
+
+  <Step title="Call gbm.transfers.transfer()">
+    Pass the peso amount and both account IDs to execute the transfer. The `account_id` field is extracted directly from each account object.
+
+    ```python
+    response = gbm.transfers.transfer(
+        amount=100,  # in MXN
+        origin_account_id=smart_cash_account.get('account_id'),
+        target_account_id=target_account.get('account_id')
+    )
+    print(response)
+    ```
+
+    The response is the JSON payload returned by the GBM+ API confirming the transfer.
+  </Step>
+</Steps>
+
+## Parameters
+
+<ParamField body="amount" type="float" required>
+  The amount **in MXN pesos** to transfer from the origin strategy to the target strategy.
+</ParamField>
+
+<ParamField body="origin_account_id" type="string" required>
+  The `account_id` of the strategy from which funds will be withdrawn. Retrieve this value from the account object returned by `getAccounts()` or `getAccount()`.
+</ParamField>
+
+<ParamField body="target_account_id" type="string" required>
+  The `account_id` of the strategy that will receive the funds. Same source as `origin_account_id`.
+</ParamField>
+
+## Getting account IDs
+
+Account IDs are not static strings you hard-code — they are fetched at runtime from the API. Both `getAccounts()` (returns all strategies as a list) and `getAccount(name)` (returns a single strategy by name) expose the `account_id` field:
+
+```python
+# Using getAccounts()
+accounts = gbm.accounts.getAccounts()
+accounts_dict = {element["name"]: element for element in accounts}
+account_id = accounts_dict.get('Smart Cash').get('account_id')
+
+# Using the convenience helper getAccount()
+account = gbm.accounts.getAccount('Smart Cash')
+account_id = account.get('account_id')
+```
+
+<Note>
+  Strategy names are case-sensitive and must match exactly what is shown in your GBM+ dashboard. If `accounts_dict.get('Smart Cash')` returns `None`, double-check the name against the output of `getAccounts()`.
+</Note>
+
+## Related references
+
+- [Transfers API reference](/api-reference/transfers)
+- [Accounts API reference](/api-reference/accounts)

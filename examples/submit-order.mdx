@@ -1,0 +1,189 @@
+---
+title: "Submit a Buy Order on the Mexican Market"
+sidebarTitle: "Submit Order"
+description: "Complete walkthrough for generating and submitting a market buy order for a Mexican stock (e.g. FUNO 11) using the orders and accounts modules."
+---
+
+This example shows how to generate and submit a buy order for a Mexican market instrument using `gbm.orders.generateOrderObject()` and `gbm.orders.submitOrder()`. The two-step approach — first building an order object, then submitting it — gives you the chance to inspect the order payload before it hits the exchange, which is useful for logging and validation.
+
+<Warning>
+  This example places **real orders with real money** against your live GBM+ account. Verify every parameter carefully before running in production. Always test with the smallest valid quantity first.
+</Warning>
+
+## Prerequisites
+
+Before running this example, make sure you have:
+
+- An authenticated GBM+ session (valid email, password, and `client_id`)
+- The exact **name** of the investment strategy you want to trade under (e.g. `'Swensen'`)
+- The **issuer ticker** of the instrument you want to buy (e.g. `'FUNO 11'`)
+- Your strategy's `legacy_contract_id` — available in the account object returned by `getAccount()`
+
+## Full example
+
+```python
+import gbmplus
+from datetime import datetime
+
+# Submit a buy market order 
+
+def main():        
+    # Instantiate trader object
+    gbm = gbmplus.GBMPlusAPI(output_log=False)
+    
+    # Get Strategy account
+    swensen_strategy = gbm.accounts.getAccount("Swensen") # Replace with your strategy name
+    
+    # Get Legacy contract id from your strategy
+    legacy_contract_id = swensen_strategy.get('legacy_contract_id')    
+
+
+    # Generate an order object. (dict)
+    order_object = gbm.orders.generateOrderObject(
+        legacy_contract_id = legacy_contract_id,
+        issuer = 'FUNO 11', # Replace Ticker here
+        quantity = 1, # Replace Quantity here
+        order_type = gbmplus.OrderTypes.Buy,
+        trading_type = gbmplus.TradingTypes.Market,
+        instrument_type = gbmplus.InstrumentTypes.SIC         
+    )
+
+    print("Order object to submit:", order_object)
+    print("Submitting order...")
+    
+    #Submit order, specify duration (in days)
+    order = gbm.orders.submitOrder(legacy_contract_id, duration=1, order=order_object)
+    print(order)
+
+        
+if __name__ == '__main__':
+    start_time = datetime.now()
+    main()
+    end_time = datetime.now()
+    print(f'\nScript complete, total runtime {end_time - start_time}')
+```
+
+## Step-by-step walkthrough
+
+<Steps>
+  <Step title="Instantiate the client">
+    Create a `GBMPlusAPI` instance. The SDK authenticates your session immediately on construction using credentials from environment variables or constructor arguments.
+
+    ```python
+    gbm = gbmplus.GBMPlusAPI(output_log=False)
+    ```
+  </Step>
+
+  <Step title="Retrieve the strategy account by name">
+    Use `gbm.accounts.getAccount()` to fetch your strategy account object in a single call. Replace `"Swensen"` with the exact name of the strategy you want to trade under.
+
+    ```python
+    swensen_strategy = gbm.accounts.getAccount("Swensen")
+    ```
+
+    This is a convenience wrapper around `getAccounts()` that returns the first matching account object or `None` if the name isn't found.
+  </Step>
+
+  <Step title="Extract the legacy_contract_id">
+    Orders on the Mexican market require the `legacy_contract_id` — an older contract identifier used by the GBM homebroker API. It lives inside the account object.
+
+    ```python
+    legacy_contract_id = swensen_strategy.get('legacy_contract_id')
+    ```
+  </Step>
+
+  <Step title="Generate the order object">
+    `generateOrderObject()` builds and returns a Python dict describing the order. No order has been submitted yet — you can print and validate it before proceeding.
+
+    ```python
+    order_object = gbm.orders.generateOrderObject(
+        legacy_contract_id=legacy_contract_id,
+        issuer='FUNO 11',       # Ticker / issuer string
+        quantity=1,             # Number of shares or units
+        order_type=gbmplus.OrderTypes.Buy,
+        trading_type=gbmplus.TradingTypes.Market,
+        instrument_type=gbmplus.InstrumentTypes.SIC
+    )
+    print("Order object to submit:", order_object)
+    ```
+
+    See [Order parameters explained](#order-parameters-explained) below for details on each argument.
+  </Step>
+
+  <Step title="Submit the order">
+    Pass the `legacy_contract_id`, a `duration` in days, and the order object to `submitOrder()`. The response is the API confirmation payload.
+
+    ```python
+    order = gbm.orders.submitOrder(legacy_contract_id, duration=1, order=order_object)
+    print(order)
+    ```
+
+    `duration=1` means the order is valid for one trading day (day order). If it is not filled by market close, it expires automatically.
+  </Step>
+</Steps>
+
+## Order parameters explained
+
+<ParamField body="issuer" type="string" required>
+  The ticker or issuer string for the instrument you want to trade. For Mexican market instruments this typically includes the series suffix — e.g. `'FUNO 11'`, `'AMXL'`, `'FEMSAUBD'`.
+</ParamField>
+
+<ParamField body="quantity" type="int" required>
+  The number of shares or units to buy or sell. Must be a positive integer.
+</ParamField>
+
+<ParamField body="order_type" type="enum" required>
+  Direction of the order. Use the `gbmplus.OrderTypes` enum:
+
+  | Value | Meaning |
+  |-------|---------|
+  | `gbmplus.OrderTypes.Buy` | Purchase the instrument |
+  | `gbmplus.OrderTypes.Sell` | Sell the instrument |
+</ParamField>
+
+<ParamField body="trading_type" type="enum" required>
+  Execution style of the order. Use the `gbmplus.TradingTypes` enum:
+
+  | Value | Meaning |
+  |-------|---------|
+  | `gbmplus.TradingTypes.Market` | Fill at the current market price |
+  | `gbmplus.TradingTypes.Limited` | Fill only at `price` or better |
+</ParamField>
+
+<ParamField body="instrument_type" type="enum" required>
+  The market segment the instrument trades on. Use the `gbmplus.InstrumentTypes` enum:
+
+  | Value | Meaning |
+  |-------|---------|
+  | `gbmplus.InstrumentTypes.IPC` | BMV IPC (Mexican blue-chips) |
+  | `gbmplus.InstrumentTypes.SIC` | SIC (foreign-listed securities traded on BMV) |
+</ParamField>
+
+<ParamField body="price" type="float">
+  Limit price per unit. **Required when `trading_type` is `TradingTypes.Limited`**; omit for market orders. Passing a price with a market order is also accepted and will be included in the order object.
+</ParamField>
+
+## Limited price order
+
+To place a limit order instead of a market order, set `trading_type` to `gbmplus.TradingTypes.Limited` and supply the `price` argument. The order will only execute if the market reaches your specified price.
+
+```python
+order_object = gbm.orders.generateOrderObject(
+    legacy_contract_id=legacy_contract_id,
+    issuer='FUNO 11',
+    quantity=1,
+    order_type=gbmplus.OrderTypes.Buy,
+    trading_type=gbmplus.TradingTypes.Limited,
+    instrument_type=gbmplus.InstrumentTypes.IPC,
+    price=25.50
+)
+```
+
+<Tip>
+  Omitting `price` when using `TradingTypes.Limited` will raise an `OrderFormatError` — the SDK validates this before constructing the payload.
+</Tip>
+
+## Related references
+
+- [Orders API reference](/api-reference/orders)
+- [Enums reference](/api-reference/enums)

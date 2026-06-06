@@ -1,0 +1,185 @@
+---
+title: "GBM Plus API Python: Complete API Reference"
+sidebarTitle: "Overview"
+description: "Reference overview for the GBMPlusAPI client class — constructor signature, all parameters, session initialization, and module access patterns."
+---
+
+The `GBMPlusAPI` class is the single entry point to the entire `gbmplus` SDK. Instantiating it validates your credentials, configures logging, establishes an authenticated `RestSession`, resolves your main contract ID, and wires up the four API modules (`accounts`, `transfers`, `orders`, and `tradingUSA`) as direct attributes. Every subsequent API call flows through one of those module attributes using the pattern `client.scope.operation(params)`.
+
+---
+
+## `GBMPlusAPI` constructor
+
+```python
+import gbmplus
+
+gbm = gbmplus.GBMPlusAPI(
+    user_email=None,
+    user_password=None,
+    client_id=None,
+    single_request_timeout=60,
+    maximum_retries=2,
+    retry_4xx_error=False,
+    retry_4xx_error_wait_time=60,
+    output_log=True,
+    log_path='',
+    log_file_prefix='gbmplus_api_',
+    print_console=True,
+    suppress_logging=False
+)
+```
+
+### Parameters
+
+<ParamField body="user_email" type="string" required>
+  Your GBM+ account e-mail address. If `None`, the SDK falls back to the `USER_EMAIL` environment variable.
+</ParamField>
+
+<ParamField body="user_password" type="string" required>
+  Your GBM+ account password. If `None`, the SDK falls back to the `USER_PASSWORD` environment variable.
+</ParamField>
+
+<ParamField body="client_id" type="string" required>
+  Your GBM+ client identifier. If `None`, the SDK falls back to the `CLIENT_ID` environment variable.
+</ParamField>
+
+<ParamField body="single_request_timeout" type="integer" default="60">
+  Maximum number of seconds to wait for any individual API call before timing out.
+</ParamField>
+
+<ParamField body="maximum_retries" type="integer" default="2">
+  Number of times the session will retry a request after a server-side (5XX) error or a JSON-decode failure before raising `APIError`.
+</ParamField>
+
+<ParamField body="retry_4xx_error" type="boolean" default="false">
+  When `True`, 4XX responses will also be retried (up to `maximum_retries` times) instead of raising `APIError` immediately.
+</ParamField>
+
+<ParamField body="retry_4xx_error_wait_time" type="integer" default="60">
+  Maximum number of seconds to wait between 4XX retries. The actual wait is a random integer in the range `[1, retry_4xx_error_wait_time]`.
+</ParamField>
+
+<ParamField body="output_log" type="boolean" default="true">
+  When `True`, log output is written to a timestamped file on disk alongside console output.
+</ParamField>
+
+<ParamField body="log_path" type="string" default="''">
+  Directory path for the log file. Defaults to the working directory of the calling script when left empty.
+</ParamField>
+
+<ParamField body="log_file_prefix" type="string" default="'gbmplus_api_'">
+  Prefix for the log filename. The SDK appends `_log__<YYYY-MM-DD_HH-MM-SS>.log` automatically.
+</ParamField>
+
+<ParamField body="print_console" type="boolean" default="true">
+  When `True`, `INFO`-level log messages are streamed to `stdout` in addition to the log file.
+</ParamField>
+
+<ParamField body="suppress_logging" type="boolean" default="false">
+  When `True`, all logging is disabled entirely — no file, no console output. The internal `_logger` attribute is set to `None`.
+</ParamField>
+
+---
+
+## Initialization sequence
+
+Every call to `GBMPlusAPI()` runs the following steps automatically before returning the client object.
+
+<Steps>
+  <Step title="Credential validation">
+    Each of `user_email`, `user_password`, and `client_id` is resolved from the argument or the corresponding environment variable (`USER_EMAIL`, `USER_PASSWORD`, `CLIENT_ID`). If any value is still missing after the fallback, a `UserError` is raised immediately.
+  </Step>
+  <Step title="Logging configuration">
+    Unless `suppress_logging=True`, a Python `logging.Logger` is created at `DEBUG` level. If `output_log=True`, a `FileHandler` writes to a timestamped `.log` file under `log_path`. If `print_console=True`, a `StreamHandler` emits `INFO`-and-above messages to the console.
+  </Step>
+  <Step title="RestSession creation and header setup">
+    A `RestSession` instance is constructed with the supplied credentials and retry settings. The underlying `requests.Session` is configured with `Content-Type: application/json`. The SDK resolves your current IP geolocation via `geocoder.ip('me')` and injects the `device-latitude` and `device-longitude` headers required by GBM+ POST endpoints.
+  </Step>
+  <Step title="Authentication — `authenticate()`">
+    `RestSession.authenticate()` posts your credentials to `https://auth.gbm.com/api/v1/session/user`. On success the response's `accessToken` is extracted and stored, and the session header `Authorization: Bearer <token>` is set for all subsequent requests. An `AuthenticationError` is raised if the response is empty or invalid.
+  </Step>
+  <Step title="Main contract lookup — `getMainContract()`">
+    `RestSession.getMainContract()` performs a GET request to `https://api.gbm.com/v1/contracts` and stores the first entry's `contract_id` as `_main_contract_id` on the session. This ID is used internally by many order and account endpoints.
+  </Step>
+  <Step title="Module initialization">
+    The four API module objects are created and attached as public attributes on the `GBMPlusAPI` instance: `accounts`, `transfers`, `orders`, and `tradingUSA`. Each module receives a reference to the authenticated `RestSession` so it can make requests on your behalf.
+  </Step>
+</Steps>
+
+---
+
+## Module attributes
+
+After construction, all API functionality is accessed through the four module attributes below.
+
+<CardGroup cols={2}>
+  <Card title="gbm.accounts" icon="wallet" href="/api-reference/accounts">
+    **Accounts & strategies** — retrieve portfolio positions, account balances, and investment strategies.
+  </Card>
+  <Card title="gbm.orders" icon="arrow-right-arrow-left" href="/api-reference/orders">
+    **Orders & trading** — generate order objects and submit buy/sell orders on the Mexican exchange.
+  </Card>
+  <Card title="gbm.transfers" icon="money-bill-transfer" href="/api-reference/transfers">
+    **Fund transfers** — initiate and track cash transfers between your GBM+ accounts.
+  </Card>
+  <Card title="gbm.tradingUSA" icon="flag-usa" href="/api-reference/trading-usa">
+    **US market trading** — access trading operations for US-listed instruments through GBM+.
+  </Card>
+</CardGroup>
+
+---
+
+## API call pattern
+
+All operations follow the same three-part pattern:
+
+```
+client . scope . operation( parameters )
+```
+
+- **`client`** — your `GBMPlusAPI` instance.
+- **`scope`** — one of the four module attributes (`accounts`, `orders`, `transfers`, `tradingUSA`).
+- **`operation`** — the specific method provided by that module.
+
+**Example — place a market buy order:**
+
+```python
+import gbmplus
+
+gbm = gbmplus.GBMPlusAPI(
+    user_email="you@example.com",
+    user_password="s3cr3t",
+    client_id="YOUR_CLIENT_ID"
+)
+
+# Build the order object
+order = gbm.orders.generateOrderObject(
+    legacy_contract_id=contract_id,
+    issuer='AMXL',
+    quantity=5,
+    order_type=gbmplus.OrderTypes.Buy,
+    trading_type=gbmplus.TradingTypes.Market,
+    instrument_type=gbmplus.InstrumentTypes.IPC
+)
+
+# Submit it
+gbm.orders.placeOrder(order)
+```
+
+<Tip>
+  All three credentials (`user_email`, `user_password`, `client_id`) can also be supplied as environment variables so you never hard-code secrets in source files.
+</Tip>
+
+---
+
+## Version
+
+The current SDK version is exposed as a module-level constant:
+
+```python
+import gbmplus
+
+print(gbmplus.__version__)  # '0.12'
+```
+
+The version string is also embedded in every `RestSession` log entry for diagnostic purposes.
