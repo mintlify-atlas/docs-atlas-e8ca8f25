@@ -1,5 +1,5 @@
 ---
-title: "Exceptions Reference — GBM Plus API Python"
+title: "Exceptions Reference Guide — GBM Plus API Python SDK"
 sidebarTitle: "Exceptions"
 description: "Complete reference for gbmplus exceptions — UserError, AuthenticationError, APIError, and OrderFormatError — with attributes and handling examples."
 ---
@@ -81,11 +81,12 @@ Raised when any HTTP **4XX** or **5XX** response is returned by the GBM+ API aft
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
+| `response` | `requests.Response` or `None` | The raw response object returned by the HTTP client |
+| `tag` | `str` | First tag from the endpoint's metadata — identifies the SDK module (e.g. `"accounts"`, `"orders"`) |
+| `operation` | `str` | Operation name that triggered the error (e.g. `"getAccounts"`, `"submitOrder"`) |
 | `status` | `int` or `None` | HTTP status code of the response (e.g. `404`, `500`) |
 | `reason` | `str` or `None` | HTTP reason phrase (e.g. `"Not Found"`, `"Internal Server Error"`) |
 | `message` | `dict`, `str`, or `None` | Response body parsed as a JSON `dict`, or a raw UTF-8 string if JSON decoding fails |
-| `tag` | `str` | First tag from the endpoint's metadata — identifies the SDK module (e.g. `"accounts"`, `"orders"`) |
-| `operation` | `str` | Operation name that triggered the error (e.g. `"getAccounts"`, `"submitOrder"`) |
 
 **String representation**
 
@@ -154,7 +155,8 @@ The SDK automatically retries failed requests before raising `APIError`. Underst
 
 - **5XX server errors** — The SDK retries automatically, waiting one second between attempts, up to `maximum_retries` times (default: `2`). `APIError` is only raised once all retries have been exhausted.
 - **4XX client errors** — These are raised immediately as `APIError` by default, since retrying a bad request rarely helps. If `retry_4xx_error=True` is set on the session, the SDK will retry 4XX responses as well, waiting a random interval up to `retry_4xx_error_wait_time` seconds between attempts.
-- **Network/connection errors** — Transport-level failures (e.g. DNS failures, timeouts) also consume the retry budget. `APIError` is raised if the budget is exhausted.
+- **Network/connection errors** — Transport-level failures (e.g. DNS failures, timeouts) also consume the retry budget. The SDK waits one second between attempts and raises `APIError` if the budget is exhausted.
+- **JSON decode errors on GET** — If a successful (2XX) GET response contains invalid JSON, the SDK retries up to `maximum_retries` times with a one-second delay before raising `APIError`.
 
 See the [configuration guide](/guides/configuration) for full details on `maximum_retries`, `retry_4xx_error`, and `retry_4xx_error_wait_time`.
 

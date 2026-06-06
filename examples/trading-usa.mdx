@@ -1,7 +1,7 @@
 ---
-title: "Buy US Stocks via GBM+ Trading USA"
+title: "Buy US Stocks Using the GBM+ Trading USA API Platform"
 sidebarTitle: "Trading USA"
-description: "End-to-end example for looking up a US stock instrument ID and placing a fractional buy order using the GBM+ Trading USA platform."
+description: "End-to-end example for looking up a US stock instrument ID and placing a fractional dollar-amount buy order using the GBM+ Trading USA platform."
 ---
 
 This example shows how to buy US stocks through the Trading USA account using `gbm.tradingUSA.generateOrderUSA()`. Unlike Mexican market orders, Trading USA orders require an `instrument_id` — an internal GBM identifier that is **not** the same as the stock ticker. You retrieve the correct `instrument_id` by calling `getMarketsUSA()` and looking up the ticker in the results before placing your order.

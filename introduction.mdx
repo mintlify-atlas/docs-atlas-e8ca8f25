@@ -1,7 +1,7 @@
 ---
-title: "GBM Plus API Python: SDK Overview and Key Concepts"
+title: "GBM Plus API Python SDK — Overview and Key Concepts"
 sidebarTitle: "Introduction"
-description: "Overview of the GBM Plus API Python library — an unofficial Python SDK for trading on GBM Plus and Homebroker programmatically."
+description: "Overview of the GBM Plus API Python library — an unofficial Python SDK for automating trades on GBM Plus and Homebroker programmatically."
 ---
 
 The GBM Plus API Python library (`gbmplus`) is a community-built Python SDK that lets you interact with the GBM Plus and Homebroker trading platform programmatically. With it you can retrieve account and strategy data, place buy and sell orders on Mexican and US markets, execute cash transfers between strategies, and integrate your GBM+ portfolio into any Python script or application — all through a clean, object-oriented interface.
@@ -60,6 +60,29 @@ When you call `GBMPlusAPI(...)`, the SDK automatically:
 3. Calls `session.getMainContract()` to resolve your primary contract ID, which is required by most subsequent requests.
 
 After instantiation, the session object silently attaches the `Authorization: Bearer <token>` header to every outgoing request — you never have to manage tokens manually.
+
+## Public API exports
+
+The following names are importable directly from the `gbmplus` package:
+
+| Export | Type | Description |
+|---|---|---|
+| `GBMPlusAPI` | Class | Main client object. Authenticates and exposes the four API modules. |
+| `OrderTypes` | Enum | Order direction: `OrderTypes.Buy` (1) or `OrderTypes.Sell` (8). |
+| `TradingTypes` | Enum | Order execution style: `TradingTypes.Limited` (0) or `TradingTypes.Market` (5). |
+| `InstrumentTypes` | Enum | Market segment: `InstrumentTypes.SIC` (0) or `InstrumentTypes.IPC` (2). |
+| `UserError` | Exception | Raised when one or more credentials are missing at instantiation. |
+| `AuthenticationError` | Exception | Raised when the GBM+ auth endpoint rejects the supplied credentials. |
+
+```python
+import gbmplus
+from gbmplus.exceptions import UserError, AuthenticationError
+
+# Enums are used when submitting orders
+order_type = gbmplus.OrderTypes.Buy
+trading_type = gbmplus.TradingTypes.Market
+instrument = gbmplus.InstrumentTypes.IPC
+```
 
 ## Requirements
 
